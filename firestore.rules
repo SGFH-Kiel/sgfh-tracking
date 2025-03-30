@@ -1,0 +1,143 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isNotDeactivated() {
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return !('deactivated' in userData) || userData.deactivated != true;
+    }
+
+    function isMember() {
+      return isAuthenticated() && isNotDeactivated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['MEMBER', 'ADMIN', 'SUPERADMIN']);
+    }
+    
+    function isSuperAdmin() {
+      return isMember() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['SUPERADMIN']);
+    }
+    
+    function isAdmin() {
+      return isMember() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['SUPERADMIN', 'ADMIN']);
+    }
+    
+    function isBootswart(boatId) {
+      return isMember() &&
+        (boatId == "" || boatId == null ||
+        get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart == request.auth.uid);
+    }
+
+    // User collection rules
+    match /users/{userId} {
+      // Allow users to read their own document
+      allow read: if (request.auth != null && request.auth.uid == userId) || isMember();
+
+      // Allow members to list all users
+      allow list: if isMember();
+      
+      // admins can create new users, members can create their own
+      allow create: if isAdmin() || (request.auth.uid == userId &&
+        request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) &&
+        request.resource.data.roles.hasOnly(['APPLICANT']));
+      
+      // Users can update their own basic info, admins can update most things, superadmins can update everything
+      allow update: if 
+        // Users can update their own basic info
+        (request.auth.uid == userId && 
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['displayName', 'email', 'lastLoginAt'])) || 
+        // Admins can update everything except superadmin role
+        (isAdmin() && 
+         (!request.resource.data.roles.hasAny(['SUPERADMIN']) || 
+          (resource.data.roles.hasAny(['SUPERADMIN']) && request.resource.data.roles.hasAny(['SUPERADMIN'])))) || 
+        // Only superadmins can grant/revoke superadmin role
+        isSuperAdmin();
+      
+      // Only admins can delete users
+      allow delete: if isAdmin();
+    }
+
+    // Boat collection rules
+    match /boats/{boatId} {
+      allow read: if isMember();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || isBootswart(boatId);
+    }
+
+    // Boat reservation rules
+    // todo: implement work hours check?
+    match /boatReservations/{reservationId} {
+      allow read: if isMember();
+      allow create: if isMember() &&
+        // Only allow creation if user is eligible (fees paid and work hours completed)
+        (isAdmin() || 
+        (request.resource.data.userId == request.auth.uid &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.feesPaid == true));
+      allow update, delete: if isAdmin() || 
+        (isMember() && resource.data.userId == request.auth.uid);
+    }
+
+    // Work hours rules
+    match /workHours/{docId} {
+      allow read: if isMember();
+      allow create: if isMember() &&
+        (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isMember() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Work appointment rules
+    match /workAppointments/{appointmentId} {
+      allow read: if isMember();
+      
+      // Only admins and bootswarts can create appointments
+      allow create: if isAdmin() || isBootswart(request.resource.data.boatId) ||
+      (
+        isMember()
+        && request.resource.data.private
+        && request.resource.data.participants.size() == 1
+        && request.resource.data.participants[0].userId == request.auth.uid
+      );
+      
+      // Members can update ONLY the participants array for themselves
+      allow update: if 
+        // Admins and bootswarts can update everything
+        isAdmin() || isBootswart(request.resource.data.boatId) ||
+        // Members can only update participants array and only for themselves
+        (isMember() && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']) &&
+        (
+          // Either adding or removing or updating exactly one participant
+          (
+            // Case 1: Adding themselves
+            (request.resource.data.participants.removeAll(resource.data.participants).size() == 1 && 
+             resource.data.participants.removeAll(request.resource.data.participants).size() == 0 &&
+             request.resource.data.participants.removeAll(resource.data.participants)[0].userId == request.auth.uid) ||
+            // Case 2: Removing themselves
+            (resource.data.participants.removeAll(request.resource.data.participants).size() == 1 && 
+             request.resource.data.participants.removeAll(resource.data.participants).size() == 0 &&
+             resource.data.participants.removeAll(request.resource.data.participants)[0].userId == request.auth.uid) ||
+            // Case 3: Updating their own status
+            (request.resource.data.participants.removeAll(resource.data.participants).size() == 1 && 
+             resource.data.participants.removeAll(request.resource.data.participants).size() == 1 &&
+             request.resource.data.participants.removeAll(resource.data.participants)[0].userId == request.auth.uid &&
+             resource.data.participants.removeAll(request.resource.data.participants)[0].userId == request.auth.uid)
+          )
+        ));
+      
+      // Only admins and bootswarts can delete appointments
+      allow delete: if isAdmin() || isBootswart(request.resource.data.boatId);
+    }
+
+    // System config rules
+    match /systemConfig/default {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+  }
+}
