@@ -84,7 +84,11 @@ export const Login: React.FC = () => {
   };
 
   if (currentUser) {
-    const navTo = from === '/login' ? '/' : from;
+    // strip first path segment if path has two segments
+    // note: fix for gh-pages deployment
+    const segments = from.split('/');
+    const path = segments.length > 1 ? segments.slice(1).join('/') : from;
+    const navTo = from.includes('login') ? '/' : path;
     return <Navigate to={navTo} />;
   }
 
