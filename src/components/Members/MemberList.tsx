@@ -253,8 +253,8 @@ export const MemberList: React.FC = () => {
         )}
       </Box>
 
-      <TableContainer>
-        <Table>
+      <TableContainer sx={{ overflowX: 'auto', width: 'inherit' }}>
+        <Table stickyHeader sx={{ tableLayout: 'fixed', width: { xs: 'inherit', md: '100%' } }}>
           <TableHead>
             <TableRow>
               <TableCell>Name</TableCell>

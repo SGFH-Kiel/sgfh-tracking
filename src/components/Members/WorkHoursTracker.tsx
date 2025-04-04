@@ -228,13 +228,22 @@ export const WorkHoursTracker: React.FC = () => {
               </Box>
               <Box sx={{ flexGrow: 1 }}>
                 <Button
-                  sx={{ justifySelf: 'flex-end', display: 'flex' }}
+                  sx={{
+                    justifySelf: 'flex-end',
+                    display: 'flex',
+                    minWidth: { xs: 'auto', md: undefined },
+                    '& .MuiButton-startIcon': {
+                      mr: { xs: 0, sm: 1 }
+                    }
+                  }}
                   onClick={handlePrivateHoursDialog}
                   variant="contained"
                   color="primary"
                   startIcon={<AddIcon />}
                 >
-                  Arbeitsstunde hinzufügen
+                  <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+                    Arbeitsstunde hinzufügen
+                  </Box>
                 </Button>
               </Box>
             </Box>

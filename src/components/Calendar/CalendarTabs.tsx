@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMemberReservationEligibility } from '../../hooks/memberHooks';
 import { usePageTitle } from '../../contexts/PageTitleContext';
-import { Box, Tabs, Tab } from '@mui/material';
+import { Box, Tabs, Tab, SxProps } from '@mui/material';
 import { WorkCalendar } from '../WorkCalendar/WorkCalendar';
 import { BoatReservationCalendar } from '../BoatReservationCalendar/BoatReservationCalendar';
 
@@ -9,10 +9,11 @@ interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
   value: number;
+  sx?: SxProps;
 }
 
 function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
+  const { children, value, index, sx, ...other } = props;
 
   return (
     <div
@@ -22,7 +23,7 @@ function TabPanel(props: TabPanelProps) {
       aria-labelledby={`calendar-tab-${index}`}
       {...other}
     >
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+      {value === index && <Box sx={sx}>{children}</Box>}
     </div>
   );
 }
@@ -63,10 +64,10 @@ export const CalendarTabs: React.FC = () => {
           <Tab label="Arbeitskalender" {...a11yProps(1)} />
         </Tabs>
       </Box>
-      <TabPanel value={value} index={0}>
+      <TabPanel value={value} index={0} sx={{ py: { xs: 1, sm: 2 } }}>
         <BoatReservationCalendar />
       </TabPanel>
-      <TabPanel value={value} index={1}>
+      <TabPanel value={value} index={1} sx={{ py: { xs: 1, sm: 2 } }}>
         <WorkCalendar />
       </TabPanel>
     </Box>

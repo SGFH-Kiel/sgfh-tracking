@@ -68,6 +68,10 @@ export const Layout: React.FC = () => {
           zIndex: (theme) => theme.zIndex.drawer + 1,
           background: (theme) => `linear-gradient(to right, ${theme.palette.primary.dark}, ${theme.palette.primary.main})`,
           boxShadow: '0 2px 12px rgba(0, 0, 0, 0.15)',
+          '& .MuiToolbar-root': {
+            minHeight: { xs: '56px', sm: '64px' },
+            px: { xs: 1, sm: 2 }
+          }
         }}
       >
         <Toolbar>
@@ -85,12 +89,14 @@ export const Layout: React.FC = () => {
           >
             <MenuIcon />
           </IconButton>
-          <Box sx={{ flexGrow: 1 }}>
+          <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
             <Breadcrumbs
-              separator={<NavigateNextIcon fontSize="small" sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />}
-              aria-label="breadcrumb"
               sx={{
                 '& .MuiBreadcrumbs-ol': {
+                  flexWrap: 'nowrap',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                   color: 'rgba(255, 255, 255, 0.7)',
                 },
                 '& .MuiBreadcrumbs-li': {
@@ -98,6 +104,8 @@ export const Layout: React.FC = () => {
                   alignItems: 'center',
                 },
               }}
+              separator={<NavigateNextIcon fontSize="small" sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />}
+              aria-label="breadcrumb"
             >
               <MuiLink
                 key={'home'}
@@ -197,12 +205,12 @@ export const Layout: React.FC = () => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
+          p: { xs: 0, sm: 2 },
           width: '100%',
-          mt: 8
+          mt: { xs: 6, sm: 8 }
         }}
       >
-        <Container maxWidth="lg" sx={{ mt: 3, mb: 4, px: { xs: 2, sm: 3 } }}>
+        <Container maxWidth="lg" sx={{ mt: { xs: 2, sm: 3 }, mb: { xs: 3, sm: 4 }, px: { xs: 1, sm: 3 } }}>
           <Routes>
             <Route path="/" element={<CalendarTabs />} />
             <Route path="/hours" element={<WorkHoursTracker />} />

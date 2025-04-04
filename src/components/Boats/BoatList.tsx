@@ -158,8 +158,8 @@ export const BoatList: React.FC = () => {
         )}
       </Box>
 
-      <TableContainer sx={{ width: '100%', overflowX: 'auto' }}>
-        <Table stickyHeader sx={{ tableLayout: 'fixed', width: '100%' }}>
+      <TableContainer sx={{ overflowX: 'auto', width: 'inherit' }}>
+        <Table stickyHeader sx={{ tableLayout: 'fixed', width: { xs: 'inherit', md: '100%' } }}>
           <TableHead>
             <TableRow>
               <TableCell width="20%">Boot</TableCell>

@@ -62,14 +62,15 @@ export const WorkCalendar: React.FC = () => {
 
   return (
     <>
-      <Paper sx={{ p: 2 }}>
+      <Paper sx={{ p: { xs: 1, sm: 2 } }}>
         <Calendar
           date={displayDate}
           localizer={localizer}
           events={appointments}
           startAccessor="startTime"
           endAccessor="endTime"
-          style={{ height: 'calc(100vh - 250px)' }}
+          style={{ height: 'calc(100vh - 250px)', minHeight: 400 }}
+          longPressThreshold={100}
           selectable={isAdmin || isAnyBootswart}
           onSelectSlot={handleOpenCreateDialog}
           onSelectEvent={handleOpenDetailsDialog}

@@ -65,7 +65,7 @@ export const BoatReservationCalendar: React.FC = () => {
   };
 
   return (
-    <Paper sx={{ p: 2 }}>
+    <Paper sx={{ p: { xs: 1, sm: 2 } }}>
       {!canReserve && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           <AlertTitle sx={{ mb: 2 }}>Reservierung nicht möglich</AlertTitle>
@@ -78,7 +78,23 @@ export const BoatReservationCalendar: React.FC = () => {
         </Alert>
       )}
 
-      <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+      <Box sx={{ 
+          mb: { xs: 1, sm: 2 }, 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          gap: 0.5,
+          mx: { xs: -1, sm: 0 },
+          px: { xs: 1, sm: 0 },
+          pb: 1,
+          overflowX: 'auto',
+          '&::-webkit-scrollbar': {
+            height: 6,
+          },
+          '&::-webkit-scrollbar-thumb': {
+            backgroundColor: 'rgba(0,0,0,0.2)',
+            borderRadius: 3,
+          }
+        }}>
         {boats.sort((a, b) => a.name.localeCompare(b.name)).map((boat) => (
           <Box
             key={boat.id}
@@ -127,6 +143,7 @@ export const BoatReservationCalendar: React.FC = () => {
           date={displayDate}
           localizer={localizer}
           events={reservations}
+          longPressThreshold={100}
           eventPropGetter={(event, ...props) => {
             const boat = boats.find(b => b.id === event.boatId);
             return {
@@ -140,7 +157,7 @@ export const BoatReservationCalendar: React.FC = () => {
           }}
           startAccessor="startTime"
           endAccessor="endTime"
-          style={{ height: 'calc(100vh - 250px)' }}
+          style={{ height: 'calc(100vh - 250px)', minHeight: 400 }}
           selectable={canReserve}
           onSelectSlot={handleSelectSlot}
           onSelectEvent={handleSelectEvent}
