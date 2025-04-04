@@ -9,15 +9,13 @@ import {
   Link,
   Divider,
 } from '@mui/material';
-import { Link as RouterLink, useLocation, Navigate } from 'react-router-dom';
+import { Link as RouterLink, Navigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 import GoogleIcon from '@mui/icons-material/Google';
 import MicrosoftIcon from '@mui/icons-material/Window';
 
 export const Login: React.FC = () => {
-  const location = useLocation();
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -84,12 +82,7 @@ export const Login: React.FC = () => {
   };
 
   if (currentUser) {
-    // strip first path segment if path has two segments
-    // note: fix for gh-pages deployment
-    const segments = from.split('/');
-    const path = segments.length > 1 ? segments.slice(1).join('/') : from;
-    const navTo = from.includes('login') ? '/' : path;
-    return <Navigate to={navTo} />;
+    return <Navigate to="/" />;
   }
 
   return (

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { CircularProgress, Box } from '@mui/material';
@@ -12,11 +12,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { currentUser, loading } = useApp();
   const location = useLocation();
 
-  useEffect(() => {
-    // Log auth state for debugging
-    console.log('ProtectedRoute state:', { loading, currentUser: !!currentUser, path: location.pathname });
-  }, [loading, currentUser, location]);
-
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
@@ -27,7 +22,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   if (!currentUser) {
     // Redirect to login while preserving the intended destination
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/login" state={{ from: { pathname: location.pathname } }} replace />;
   }
 
   if (currentUser.roles.includes(UserRole.APPLICANT)) {

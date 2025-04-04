@@ -7,7 +7,7 @@ import { Layout } from './components/Layout';
 import { Login } from './components/Auth/Login';
 import { Signup } from './components/Auth/Signup';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { SnackbarProvider } from 'notistack';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -43,7 +43,7 @@ const AppContent = () => {
 
 function App() {
   return (
-    <Router>
+    <BrowserRouter>
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="de">
         <SnackbarProvider maxSnack={3} autoHideDuration={4000}>
           <AppProvider>
@@ -56,7 +56,7 @@ function App() {
           </AppProvider>
         </SnackbarProvider>
       </LocalizationProvider>
-    </Router>
+    </BrowserRouter>
   );
 }
 
