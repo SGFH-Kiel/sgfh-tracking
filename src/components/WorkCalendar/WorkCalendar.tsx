@@ -48,7 +48,7 @@ export const WorkCalendar: React.FC = () => {
 
   const { startTime, endTime } = useMemo(() => {
     // if start is not 00:00 and end is not 00:00 use start and end times
-    if (selectedSlot && selectedSlot.start && selectedSlot.end && (selectedSlot.start.getHours() != 0 || selectedSlot.end.getHours() != 0)) {
+    if (selectedSlot && selectedSlot.start && selectedSlot.end && (selectedSlot.start.getHours() !== 0 || selectedSlot.end.getHours() !== 0)) {
       return { startTime: selectedSlot.start, endTime: selectedSlot.end };
     }
     let start = selectedSlot?.start || new Date();

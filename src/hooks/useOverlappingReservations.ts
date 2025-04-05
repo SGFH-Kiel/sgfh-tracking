@@ -25,7 +25,7 @@ export const useOverlappingReservations = ({ startTime, endTime, excludeReservat
         if (excludeReservationId && reservation.id === excludeReservationId) {
           return false;
         }
-        return boatId ? reservation.boatId == boatId : true;
+        return boatId ? reservation.boatId === boatId : true;
       });
       return [filtered.length > 0, filtered];
     } catch (error) {
@@ -36,8 +36,8 @@ export const useOverlappingReservations = ({ startTime, endTime, excludeReservat
 
   useEffect(() => {
     async function checkOverlapping() {
-      const [_, overlappingReservations] = await hasOverlappingReservations();
-      setOverlapping(overlappingReservations);
+      const hasReservations = await hasOverlappingReservations();
+      setOverlapping(hasReservations[1]);
     }
     checkOverlapping();
   }, [hasOverlappingReservations, startTime, endTime, excludeReservationId]);

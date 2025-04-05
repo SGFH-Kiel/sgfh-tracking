@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { debounce } from 'lodash';
 import {
   Dialog,
@@ -8,11 +8,9 @@ import {
   Typography,
   Box,
   Chip,
-  Collapse,
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction,
   IconButton,
   TextField,
   Autocomplete,

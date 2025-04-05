@@ -15,7 +15,7 @@ import {
 import { Save as SaveIcon } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers';
 import dayjs, { Dayjs } from 'dayjs';
-import { Boat, WorkAppointment } from '../../types/models';
+import { WorkAppointment } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
 
 interface PrivateWorkHoursDialogProps {

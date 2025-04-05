@@ -26,13 +26,17 @@ import {
   Add as AddIcon,
   Check as CheckIcon,
   Close as CloseIcon,
+  Upload as UploadIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material';
 import { useApp } from '../../contexts/AppContext';
 import { usePageTitle } from '../../contexts/PageTitleContext';
-import { useCalculateWorkHours } from '../../hooks/memberHooks';
+import { useCalculateWorkHours, UserWorkHours } from '../../hooks/memberHooks';
 import humanizeDuration from 'humanize-duration';
 import { WorkAppointment, WorkParticipant } from '../../types/models';
 import { PrivateWorkHoursDialog } from './PrivateWorkHoursDialog';
+import { ImportWorkHoursDialog } from './ImportWorkHoursDialog';
+import { utils, writeFile } from 'xlsx';
 
 const humanizer = humanizeDuration.humanizer({ language: 'de', round: true, units: ['h', 'm'], delimiter: ' und ' });
 const shortHumanizer = humanizeDuration.humanizer({ language: 'short', round: true, delimiter: ' ', units: ['h', 'm'], maxDecimalPoints: 1, languages: { short: { h: () => 'h', m: () => 'm' } } });
@@ -82,9 +86,96 @@ const StatusChip = ({ status, overall, sx }: { status: WORKSTATUS; overall: bool
 export const WorkHoursTracker: React.FC = () => {
   const { isAdmin, isAnyBootswart, currentUser, systemConfig, database, boats } = useApp();
   const [privateHoursDialogOpen, setPrivateHoursDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const { userWorkHours, loading, error, reload: refreshAppointments } = useCalculateWorkHours();
   const { setBreadcrumbs } = usePageTitle();
+
+  const handleExport = useCallback(() => {
+    const wb = utils.book_new();
+
+    // Create a sheet for each user
+    userWorkHours.forEach((userHours: UserWorkHours) => {
+      // Create metadata section
+      const metadata = [
+        ['Benutzerinformationen'],
+        ['Name', userHours.user.displayName],
+        ['E-Mail', userHours.user.email || 'N/A'],
+        ['Abgeschlossene Stunden', humanizer(userHours.completedDuration)],
+        ['Geplante Stunden', humanizer(userHours.upcomingDuration)],
+        ['Abgelehnte Stunden', humanizer(userHours.declinedDuration)],
+        [],
+        ['Arbeitsstunden'],
+        ['Titel', 'Startzeit', 'Endzeit', 'Dauer', 'Status', 'Beschreibung', 'Boot']
+      ];
+
+      // Add completed appointments
+      userHours.appointments.completed.forEach(apt => {
+        const participant = apt.participants.find(p => p.userId === userHours.user.id)!;
+        metadata.push([
+          apt.title,
+          new Date(participant.startTime || apt.startTime).toLocaleString(),
+          new Date(participant.endTime || apt.endTime).toLocaleString(),
+          humanizer(new Date(participant.endTime || apt.endTime).getTime() - new Date(participant.startTime || apt.startTime).getTime()),
+          'Abgeschlossen',
+          apt.description || '',
+          boats.find(b => b.id === apt.boatId)?.name || ''
+        ]);
+      });
+
+      // Add upcoming appointments
+      userHours.appointments.upcoming.forEach(apt => {
+        const participant = apt.participants.find(p => p.userId === userHours.user.id)!;
+        metadata.push([
+          apt.title,
+          new Date(participant.startTime || apt.startTime).toLocaleString(),
+          new Date(participant.endTime || apt.endTime).toLocaleString(),
+          humanizer(new Date(participant.endTime || apt.endTime).getTime() - new Date(participant.startTime || apt.startTime).getTime()),
+          'Geplant',
+          apt.description || '',
+          boats.find(b => b.id === apt.boatId)?.name || ''
+        ]);
+      });
+
+      // Add declined appointments
+      userHours.appointments.declined.forEach(apt => {
+        const participant = apt.participants.find(p => p.userId === userHours.user.id)!;
+        metadata.push([
+          apt.title,
+          new Date(participant.startTime || apt.startTime).toLocaleString(),
+          new Date(participant.endTime || apt.endTime).toLocaleString(),
+          humanizer(new Date(participant.endTime || apt.endTime).getTime() - new Date(participant.startTime || apt.startTime).getTime()),
+          'Abgelehnt',
+          apt.description || '',
+          boats.find(b => b.id === apt.boatId)?.name || ''
+        ]);
+      });
+
+      // Create worksheet
+      const ws = utils.aoa_to_sheet(metadata);
+
+      // Auto-size columns
+      const range = utils.decode_range(ws['!ref'] || 'A1');
+      const cols: any[] = [];
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        let maxWidth = 10;
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+          const cell = ws[utils.encode_cell({ r: R, c: C })];
+          if (cell && cell.v) {
+            maxWidth = Math.max(maxWidth, String(cell.v).length);
+          }
+        }
+        cols[C] = { wch: maxWidth };
+      }
+      ws['!cols'] = cols;
+
+      // Add the worksheet to the workbook
+      utils.book_append_sheet(wb, ws, userHours.user.displayName);
+    });
+
+    // Save file
+    writeFile(wb, `work_hours_${new Date().toISOString().split('T')[0]}.xlsx`);
+  }, [userWorkHours]);
 
   const handlePrivateHoursDialog = useCallback(() => {
     setPrivateHoursDialogOpen(true);
@@ -308,9 +399,46 @@ export const WorkHoursTracker: React.FC = () => {
       
       {(isAdmin || isAnyBootswart) && (
         <Paper sx={{ p: 3 }}>
-          <Typography variant="h5" gutterBottom>
-            Mitgliederstunden
-          </Typography>
+          <Box sx={{ flexGrow: 1, display: 'flex', gap: 1, justifyContent: 'flex-end', mb: 1 }}>
+            <Typography variant="h5" gutterBottom>
+              Mitgliederstunden
+            </Typography>
+            <Box sx={{ flexGrow: 1, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+              <Button
+                onClick={() => setImportDialogOpen(true)}
+                variant="outlined"
+                color="primary"
+                startIcon={<UploadIcon />}
+                sx={{
+                  minWidth: { xs: 'auto', md: undefined },
+                  '& .MuiButton-startIcon': {
+                    mr: { xs: 0, sm: 1 }
+                  }
+                }}
+              >
+                <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+                  Import
+                </Box>
+              </Button>
+
+              <Button
+                onClick={handleExport}
+                variant="outlined"
+                color="primary"
+                startIcon={<DownloadIcon />}
+                sx={{
+                  minWidth: { xs: 'auto', md: undefined },
+                  '& .MuiButton-startIcon': {
+                    mr: { xs: 0, sm: 1 }
+                  }
+                }}
+              >
+                <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+                  Export
+                </Box>
+              </Button>
+            </Box>
+          </Box>
 
           <TableContainer>
             <Table>
@@ -477,6 +605,11 @@ export const WorkHoursTracker: React.FC = () => {
         open={privateHoursDialogOpen}
         onClose={() => setPrivateHoursDialogOpen(false)}
         onUpdate={refreshAppointments}
+      />
+      <ImportWorkHoursDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        onImportComplete={refreshAppointments}
       />
     </Box>
   );

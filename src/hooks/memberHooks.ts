@@ -116,13 +116,13 @@ export const useCalculateWorkHours = (onlyAppointments?: WorkAppointment[], only
     } finally {
       setLoading(false);
     }
-  }, [database]);
+  }, [database, systemConfig.yearChangeDate]);
 
   useEffect(() => {
     fetchData(onlyAppointments, onlyUser);
-  }, [database, onlyAppointments, onlyUser]);
+  }, [database, onlyAppointments, onlyUser, fetchData]);
 
-  const reload = useCallback(fetchData, [database, onlyAppointments, onlyUser]);
+  const reload = useCallback(fetchData, [database, onlyAppointments, onlyUser, fetchData]);
 
   return { loading, error, userWorkHours, users: computedUsers, reload };
 };
