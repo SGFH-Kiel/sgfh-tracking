@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/sgfh-tracking/static/css/main.4bd39d8e.css",
+    "main.js": "/sgfh-tracking/static/js/main.a044ec6b.js",
+    "static/js/453.63086042.chunk.js": "/sgfh-tracking/static/js/453.63086042.chunk.js",
+    "index.html": "/sgfh-tracking/index.html",
+    "main.4bd39d8e.css.map": "/sgfh-tracking/static/css/main.4bd39d8e.css.map",
+    "main.a044ec6b.js.map": "/sgfh-tracking/static/js/main.a044ec6b.js.map",
+    "453.63086042.chunk.js.map": "/sgfh-tracking/static/js/453.63086042.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.4bd39d8e.css",
+    "static/js/main.a044ec6b.js"
+  ]
+}
