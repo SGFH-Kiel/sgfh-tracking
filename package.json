@@ -1,9 +1,9 @@
 {
   "name": "sgfh-tracking",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "author": "philipp.kuehn@dcso.de",
-  "homepage": "https://ctc-phil.github.io/sgfh-tracking",
+  "author": "philipp.kuehn@posteo.de",
+  "homepage": "https://stundenzettel.segelgruppe-kiel.de",
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
