@@ -52,8 +52,29 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   const [editedData, setEditedData] = useState<Partial<WorkAppointment>>(appointment);
 
   useEffect(() => {
-    setEditedData(appointment);
-  }, [appointment]);
+    if (open) {
+      setEditedData(appointment);
+      setIsEditing(false); // Reset editing state when dialog opens
+    }
+  }, [open, appointment, appointment.id]); // Only reset when dialog opens or appointment ID changes
+
+  const handleStartTimeChange = useCallback((newValue: Dayjs | null) => {
+    if (newValue) {
+      setEditedData(prev => ({
+        ...prev,
+        startTime: newValue.toDate()
+      }));
+    }
+  }, []);
+
+  const handleEndTimeChange = useCallback((newValue: Dayjs | null) => {
+    if (newValue) {
+      setEditedData(prev => ({
+        ...prev,
+        endTime: newValue.toDate()
+      }));
+    }
+  }, []);
 
   const canEdit = isAdmin || (isAnyBootswart && boats.find(b => b.id === appointment.boatId)?.bootswart === currentUser?.id);
   const isMyPrivateAppointment = appointment.private && appointment.participants.some(p => p.userId === currentUser?.id);
@@ -117,7 +138,10 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   const handleSave = async () => {
     setLoading(true);
     try {
-      await database.updateDocument('workAppointments', appointment.id, editedData);
+      await database.updateDocument('workAppointments', appointment.id, {
+        ...editedData,
+        updatedAt: new Date()
+      });
       await onUpdate?.();
       setIsEditing(false);
     } catch (error) {
@@ -193,14 +217,14 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                 <DateTimePicker
                   label="Start Zeit"
                   value={dayjs(editedData.startTime)}
-                  onChange={(newValue) => newValue && setEditedData({ ...editedData, startTime: newValue.toDate() })}
+                  onChange={handleStartTimeChange}
                   sx={{ flex: 1 }}
                   format="DD.MM.YYYY HH:mm"
                 />
                 <DateTimePicker
                   label="End Zeit"
                   value={dayjs(editedData.endTime)}
-                  onChange={(newValue) => newValue && setEditedData({ ...editedData, endTime: newValue.toDate() })}
+                  onChange={handleEndTimeChange}
                   sx={{ flex: 1 }}
                   format="DD.MM.YYYY HH:mm"
                 />

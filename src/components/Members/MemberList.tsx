@@ -26,13 +26,15 @@ import {
   Chip,
   CircularProgress,
   Alert,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   Edit as EditIcon,
   Block as BlockIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
-  CheckCircleOutline as CheckCircleIcon
+  CheckCircleOutline as CheckCircleIcon,
 } from '@mui/icons-material';
 import { BoatReservation, User, UserRole } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
@@ -49,7 +51,7 @@ export const MemberList: React.FC = () => {
     ]);
   }, [setBreadcrumbs]);
   const { enqueueSnackbar } = useSnackbar();
-  const { currentUser, isSuperAdmin, isAnyBootswart, createUserAndSendInvite, deactivateUser, deleteUser, activateUser, database, systemConfig } = useApp();
+  const { currentUser, isSuperAdmin, isAnyBootswart, createUserAndSendInvite, deactivateUser, deleteUser, activateUser, reloadCurrentUser, database, systemConfig } = useApp();
   const { loading, error, userWorkHours, users, reload } = useCalculateWorkHours();
   const [open, setOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<User | null>(null);
@@ -58,6 +60,7 @@ export const MemberList: React.FC = () => {
     displayName: '',
     roles: [UserRole.MEMBER],
     feesPaid: false,
+    skipHours: false,
   });
 
   const handleOpen = (member?: User) => {
@@ -68,6 +71,7 @@ export const MemberList: React.FC = () => {
         displayName: member.displayName || '',
         roles: member.roles.filter(role => role !== UserRole.APPLICANT),
         feesPaid: member.feesPaid || false,
+        skipHours: member.skipHours || false,
       });
     } else {
       setEditingMember(null);
@@ -76,6 +80,7 @@ export const MemberList: React.FC = () => {
         displayName: '',
         roles: [UserRole.MEMBER],
         feesPaid: false,
+        skipHours: false,
       });
     }
     setOpen(true);
@@ -94,8 +99,10 @@ export const MemberList: React.FC = () => {
           displayName: formData.displayName,
           roles: formData.roles,
           feesPaid: formData.feesPaid,
+          skipHours: formData.skipHours,
           updatedAt: new Date(),
         });
+        reloadCurrentUser();
       } else {
         // Create new user in both Auth and Firestore
         const userId = await createUserAndSendInvite({
@@ -242,7 +249,7 @@ export const MemberList: React.FC = () => {
     <Paper sx={{ p: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
         <Typography variant="h5">Mitglieder</Typography>
-        {isSuperAdmin && (
+        {isSuperAdmin && systemConfig.featureFlags?.enableMemberCreation && (
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -292,10 +299,18 @@ export const MemberList: React.FC = () => {
                   />
                 </TableCell>
                 <TableCell>
-                  <Chip
-                    label={humanizer(memberWorkHours.completedDuration)}
-                    color={memberWorkHours.completedDuration >= systemConfig.workHourThreshold * 3600000 ? 'success' : 'error'}
-                  />
+                  {member.skipHours ? (
+                    <Chip
+                      label="ausgesetzt"
+                      color="warning"
+                      variant="outlined"
+                    />
+                  ) : (
+                    <Chip
+                      label={humanizer(memberWorkHours.completedDuration)}
+                      color={memberWorkHours.completedDuration >= systemConfig.workHourThreshold * 3600000 ? 'success' : 'error'}
+                    />
+                  )}
                 </TableCell>
                 {isSuperAdmin && (
                   <TableCell>
@@ -355,17 +370,30 @@ export const MemberList: React.FC = () => {
               <MenuItem value={UserRole.SUPERADMIN}>Superadmin</MenuItem>
             </Select>
           </FormControl>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Beitrag bezahlt</InputLabel>
-            <Select
-              value={formData.feesPaid}
-              onChange={(e) => setFormData({ ...formData, feesPaid: e.target.value === 'true' })}
+          <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.feesPaid}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, feesPaid: e.target.checked })}
+                />
+              }
               label="Beitrag bezahlt"
-            >
-              <MenuItem value="true">Ja</MenuItem>
-              <MenuItem value="false">Nein</MenuItem>
-            </Select>
-          </FormControl>
+              sx={{ mt: 2 }}
+            />
+            {formData.roles.includes(UserRole.MEMBER) && (
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.skipHours}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, skipHours: e.target.checked })}
+                  />
+                }
+                label="Arbeitsstunden ausgesetzt"
+                sx={{ mt: 2 }}
+              />
+            )}
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Abbrechen</Button>

@@ -154,7 +154,7 @@ export const ImportWorkHoursDialog: React.FC<ImportWorkHoursDialogProps> = ({
       );
 
       // Create work appointment
-      const appointmentId = await database.addDocument('workAppointments', {
+      await database.addDocument('workAppointments', {
         title,
         description,
         boatId: selectedBoat || undefined,

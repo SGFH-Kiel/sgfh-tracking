@@ -149,12 +149,15 @@ export const useMemberReservationEligibility = (): MemberEligibility => {
     missingRequirements.push('Mitglied deaktiviert');
   }
 
-  const remainingDuration = (systemConfig.workHourThreshold * 3600000) - currentWorkDuration;
+  // Only check work hours if skipHours is not enabled
+  if (!currentUser.skipHours) {
+    const remainingDuration = (systemConfig.workHourThreshold * 3600000) - currentWorkDuration;
 
-  if (remainingDuration > 0) {
-    missingRequirements.push(
-      `Arbeitsstunden nicht erfüllt (${humanizer(remainingDuration)} )`
-    );
+    if (remainingDuration > 0) {
+      missingRequirements.push(
+        `Arbeitsstunden nicht erfüllt (${humanizer(remainingDuration)} )`
+      );
+    }
   }
 
   if (error) {

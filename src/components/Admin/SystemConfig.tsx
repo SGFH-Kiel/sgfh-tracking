@@ -31,7 +31,6 @@ export const SystemConfig: React.FC = () => {
     id: 'default',
     yearChangeDate: new Date(new Date().getFullYear(), 0, 1),
     workHourThreshold: 20,
-    currentYear: new Date().getFullYear(),
   });
 
 
@@ -122,19 +121,6 @@ export const SystemConfig: React.FC = () => {
             })
           }
           InputProps={{ inputProps: { min: 0 } }}
-        />
-
-        <TextField
-          label="Aktuelles Jahr"
-          type="number"
-          value={config.currentYear}
-          onChange={(e) =>
-            setConfig({
-              ...config,
-              currentYear: parseInt(e.target.value) || new Date().getFullYear(),
-            })
-          }
-          InputProps={{ inputProps: { min: 2000 } }}
         />
 
         {error && (

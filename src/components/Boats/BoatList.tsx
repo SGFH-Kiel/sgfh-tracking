@@ -297,18 +297,16 @@ export const BoatList: React.FC = () => {
               label="Reservierungen benötigen Genehmigung"
               sx={{ mt: 2 }}
             />
-            {(isAdmin || (isAnyBootswart && editingBoat?.bootswart === currentUser?.id)) && (
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formData.blocked}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, blocked: e.target.checked })}
-                  />
-                }
-                label="Boot gesperrt"
-                sx={{ mt: 1 }}
-              />
-            )}
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.blocked}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, blocked: e.target.checked })}
+                />
+              }
+              label="Boot gesperrt"
+              sx={{ mt: 1 }}
+            />
           </Box>
         </DialogContent>
         <DialogActions>

@@ -45,21 +45,24 @@ enum WORKSTATUS {
   OPEN = 'OPEN',
   PLANNED = 'PLANNED',
   DONE = 'DONE',
-  REJECTED = 'REJECTED'
+  REJECTED = 'REJECTED',
+  PAUSED = 'PAUSED'
 }
 
 enum WORKSTATUS_OVERALL_TEXT {
   OPEN = 'Offen',
   PLANNED = 'Geplant',
   DONE = 'Erfüllt',
-  REJECTED = 'Prüfen!'
+  REJECTED = 'Prüfen!',
+  PAUSED = 'Ausgesetzt'
 }
 
 enum WORKSTATUS_TEXT {
   OPEN = 'Unbestätigt',
   PLANNED = 'Geplant',
   DONE = 'Bestätigt',
-  REJECTED = 'Abgelehnt'
+  REJECTED = 'Abgelehnt',
+  PAUSED = 'Ausgesetzt'
 }
 
 const StatusChip = ({ status, overall, sx }: { status: WORKSTATUS; overall: boolean; sx?: SxProps }) => {
@@ -72,7 +75,7 @@ const StatusChip = ({ status, overall, sx }: { status: WORKSTATUS; overall: bool
         : WORKSTATUS_TEXT[status]
     }
     color={
-      status === WORKSTATUS.DONE
+      (status === WORKSTATUS.DONE || status === WORKSTATUS.PAUSED)
       ? 'success'
       : status === WORKSTATUS.PLANNED
       ? 'info'
@@ -175,7 +178,7 @@ export const WorkHoursTracker: React.FC = () => {
 
     // Save file
     writeFile(wb, `work_hours_${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [userWorkHours]);
+  }, [userWorkHours, boats]);
 
   const handlePrivateHoursDialog = useCallback(() => {
     setPrivateHoursDialogOpen(true);
@@ -227,11 +230,13 @@ export const WorkHoursTracker: React.FC = () => {
           </Typography>
           <StatusChip
             status={
-              currentUserHours?.completedDuration >= required
-                ? WORKSTATUS.DONE
-                : currentUserHours?.completedDuration + currentUserHours?.upcomingDuration >= required
-                  ? WORKSTATUS.PLANNED
-                  : WORKSTATUS.OPEN
+              currentUser.skipHours
+                ? WORKSTATUS.PAUSED
+                : currentUserHours?.completedDuration >= required
+                  ? WORKSTATUS.DONE
+                  : currentUserHours?.completedDuration + currentUserHours?.upcomingDuration >= required
+                    ? WORKSTATUS.PLANNED
+                    : WORKSTATUS.OPEN
           } overall={true} sx={{ mt: 1, mb: 2 }} />
         </Box>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4, mt: 2 }}>
@@ -486,13 +491,15 @@ export const WorkHoursTracker: React.FC = () => {
                       <TableCell align="right">{shortHumanizer(remaining)}</TableCell>
                       <TableCell>
                         <StatusChip overall={true} status={
-                          completedDuration >= required
-                            ? WORKSTATUS.DONE
-                            : hasPending
-                              ? WORKSTATUS.REJECTED // special case for "Prüfen!"
-                              : completedDuration + upcomingDuration >= required
-                                ? WORKSTATUS.PLANNED
-                                : WORKSTATUS.OPEN
+                          user.skipHours
+                           ? WORKSTATUS.PAUSED
+                           : completedDuration >= required
+                              ? WORKSTATUS.DONE
+                              : hasPending
+                                ? WORKSTATUS.REJECTED // special case for "Prüfen!"
+                                : completedDuration + upcomingDuration >= required
+                                  ? WORKSTATUS.PLANNED
+                                  : WORKSTATUS.OPEN
                         } />
                       </TableCell>
                     </TableRow>

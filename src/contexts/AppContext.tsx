@@ -22,13 +22,16 @@ interface AppContextType {
   deleteUser: (userId: string) => Promise<void>;
   createUserAndSendInvite: (request: CreateUserRequest) => Promise<string>;
   reloadBoats: () => Promise<void>;
+  reloadCurrentUser: () => Promise<void>;
 }
 
 const defaultSystemConfig: SystemConfig = {
   id: 'default',
   workHourThreshold: 25,
   yearChangeDate: new Date(new Date().getFullYear(), 0, 1),
-  currentYear: new Date().getFullYear(),
+  featureFlags: {
+    enableMemberCreation: false
+  }
 }
 
 const AppContext = createContext<AppContextType>({
@@ -48,6 +51,7 @@ const AppContext = createContext<AppContextType>({
   deleteUser: async () => { throw new Error('Not implemented'); },
   createUserAndSendInvite: async () => { throw new Error('Not implemented'); },
   reloadBoats: async () => { throw new Error('Not implemented'); },
+  reloadCurrentUser: async () => { throw new Error('Not implemented'); },
 });
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -99,6 +103,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentUser(userDoc as User);
     }
   }
+
+  const reloadCurrentUser = async () => {
+    try {
+      const userDoc = await getDatabaseProvider().getDocument<User>('users', currentUserRef.current!.id);
+      if (userDoc) {
+        setCurrentUser(userDoc as User);
+      }
+    } catch (error) {
+      console.error('Error loading current user:', error);
+    }
+  };
 
   const signIn = async (request: SignInRequest) => {
     try {
@@ -187,6 +202,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const createUserAndSendInvite = async (request: CreateUserRequest) => {
     // TODO: Firebase will always log in the session of the created user which breaks the creation process, disable for now
+    // this is probably done with firebase functions, which requires a paid plan
     try {
       //await createUser(email, displayName);
       //await sendInvite(email);
@@ -229,7 +245,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activateUser,
         deleteUser,
         createUserAndSendInvite,
-        reloadBoats
+        reloadBoats,
+        reloadCurrentUser
       }}
     >
       {children}

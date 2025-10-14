@@ -313,45 +313,47 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
               </Button>
             )}
           </Box>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            {isOwner && !isEditing && (!boat?.requiresApproval || isBootswartOrAdmin) && (
-              <Button
-                color="primary"
-                variant="outlined"
-                onClick={() => setIsEditing(true)}
-                startIcon={<EditIcon />}
-              >
-                Bearbeiten
-              </Button>
-            )}
-            {isEditing && (
-              <>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              {isOwner && !isEditing && (!boat?.requiresApproval || isBootswartOrAdmin) && (
                 <Button
-                  onClick={() => setIsEditing(false)}
+                  color="primary"
                   variant="outlined"
-                  startIcon={<CloseIcon />}
+                  onClick={() => setIsEditing(true)}
+                  startIcon={<EditIcon />}
                 >
-                  Abbrechen
+                  Bearbeiten
                 </Button>
-                <Button
-                  onClick={handleSaveChanges}
-                  variant="contained"
-                  startIcon={<SaveIcon />}
-                >
-                  Speichern
+              )}
+              {isEditing && (
+                <>
+                  <Button
+                    onClick={() => setIsEditing(false)}
+                    variant="outlined"
+                    startIcon={<CloseIcon />}
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button
+                    onClick={handleSaveChanges}
+                    variant="contained"
+                    startIcon={<SaveIcon />}
+                  >
+                    Speichern
+                  </Button>
+                </>
+              )}
+              {!isEditing && (
+                <Button onClick={onClose} variant="outlined">
+                  Schließen
                 </Button>
-              </>
-            )}
-            {!isEditing && (
-              <Button onClick={onClose} variant="outlined">
-                Schließen
-              </Button>
-            )}
+              )}
+            </Box>
             {!isEditing && isBootswartOrAdmin && reservation.status === 'pending' && (
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <Button
                   onClick={() => handleStatusChange('rejected')}
-                  color="error"
+                  color="warning"
                   variant="outlined"
                   startIcon={<CloseIcon />}
                 >

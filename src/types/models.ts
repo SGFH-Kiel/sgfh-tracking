@@ -12,6 +12,7 @@ export interface User {
   deactivated?: boolean;
   roles: UserRole[];
   feesPaid: boolean;
+  skipHours?: boolean;
   createdAt: Date;
   updatedAt: Date;
   emailVerified?: boolean;
@@ -75,7 +76,9 @@ export interface SystemConfig {
   id: string;
   yearChangeDate: Date; // Stored with year 2000, only month and day are relevant
   workHourThreshold: number;
-  currentYear: number;
+  featureFlags?: {
+    enableMemberCreation?: boolean;
+  };
   createdAt?: Date;
   updatedAt?: Date;
 }
