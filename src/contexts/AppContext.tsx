@@ -54,6 +54,8 @@ const AppContext = createContext<AppContextType>({
   reloadCurrentUser: async () => { throw new Error('Not implemented'); },
 });
 
+const AUTO_APPROVE_DOMAINS = ['mitglied.segelgruppe-kiel.de'];
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(defaultSystemConfig);
@@ -63,7 +65,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const navigate = useNavigate();
   const currentUserRef = useRef<User | null>(null);
 
-  const ensureUserDocument = async (user: AuthUser, displayName?: string) => {
+  const ensureUserDocument = async (user: AuthUser, displayName?: string) => {  const userEmail = user.email;
+    if (!userEmail) {
+      throw new Error('No email provided');
+    }
+
+    // Extract domain from email
+    const domain = userEmail.split('@')[1]?.toLowerCase();
+    const isAutoApproved = domain && AUTO_APPROVE_DOMAINS.includes(domain);
+
     // Check if user document exists
     let userDoc = await getDatabaseProvider().getDocument<User>('users', user.uid);
     if (userDoc) {
@@ -77,8 +87,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: user.uid,
         feesPaid: false,
         email: user.email!,
-        displayName: displayName || user.displayName!,
-        roles: [UserRole.APPLICANT],
+        displayName: displayName || user.displayName || userEmail.split('@')[0],
+        roles: isAutoApproved ? [UserRole.MEMBER] : [UserRole.APPLICANT],
         createdAt: new Date(),
         updatedAt: new Date(),
         emailVerified: user.emailVerified,

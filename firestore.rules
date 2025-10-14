@@ -31,6 +31,12 @@ service cloud.firestore {
         (boatId == "" || boatId == null ||
         get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart == request.auth.uid);
     }
+    
+    function isAllowedDomain() {
+      return request.auth != null && 
+             request.auth.token.email != null && 
+             request.auth.token.email.matches('.*@mitglied\.segelgruppe-kiel\.de$');
+    }
 
     // User collection rules
     match /users/{userId} {
@@ -40,10 +46,21 @@ service cloud.firestore {
       // Allow members to list all users
       allow list: if isMember();
       
-      // admins can create new users, members can create their own
-      allow create: if isAdmin() || (request.auth.uid == userId &&
-        request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) &&
-        request.resource.data.roles.hasOnly(['APPLICANT']));
+      // Allow creation for:
+      // 1. Admins
+      // 2. Users with allowed domain (auto-approve as MEMBER)
+      // 3. Self-registration as APPLICANT
+      allow create: if isAdmin() || 
+        (request.auth.uid == userId && (
+          // Auto-approve if from allowed domain
+          (isAllowedDomain() && 
+           request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) &&
+           request.resource.data.roles.hasOnly(['MEMBER']) &&
+           request.resource.data.email.matches('.*@mitglied\.segelgruppe-kiel\.de$')) ||
+          // Standard applicant registration
+          (request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) &&
+           request.resource.data.roles.hasOnly(['APPLICANT']))
+        ));
       
       // Users can update their own basic info, admins can update most things, superadmins can update everything
       allow update: if 
