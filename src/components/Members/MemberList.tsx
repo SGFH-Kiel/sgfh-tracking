@@ -278,7 +278,7 @@ export const MemberList: React.FC = () => {
               return (
               <TableRow key={member.id}>
                 <TableCell>{member.displayName}</TableCell>
-                <TableCell>{member.email}</TableCell>
+                <TableCell sx={{ wordWrap: 'break-word' }}>{member.email}</TableCell>
                 <TableCell>
                   {
                     member.deactivated
