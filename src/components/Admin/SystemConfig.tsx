@@ -106,7 +106,6 @@ export const SystemConfig: React.FC = () => {
           format="DD.MM"
           slotProps={{
             textField: { size: 'medium' },
-            layout: { sx: { '& .MuiPickersCalendarHeader-label': { display: 'none' } } }
           }}
         />
 
