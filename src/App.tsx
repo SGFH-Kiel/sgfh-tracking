@@ -43,7 +43,7 @@ const AppContent = () => {
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/">
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="de">
         <SnackbarProvider maxSnack={3} autoHideDuration={4000}>
           <AppProvider>

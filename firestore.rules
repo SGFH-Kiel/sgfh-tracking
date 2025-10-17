@@ -37,80 +37,6 @@ service cloud.firestore {
              request.auth.token.email != null && 
              request.auth.token.email.matches('.*@mitglied\\.segelgruppe-kiel\\.de$');
     }
-    
-    function hasSufficientWorkHours(userId) {
-      let userDoc = get(/databases/$(database)/documents/users/$(userId)).data;
-      
-      // If skipHours is enabled, always return true
-      if (userDoc.skipHours == true) {
-        return true;
-      }
-      
-      // Get system config for work hour threshold and year change date
-      let config = get(/databases/$(database)/documents/systemConfig/default).data;
-      let thresholdHours = config.workHourThreshold;
-      
-      // Calculate the current year's change date
-      let yearChangeDate = config.yearChangeDate;
-      let currentYear = request.time.year;
-      let currentDate = request.time;
-      
-      // Create date objects for comparison
-      let thisYearChangeDate = timestamp(
-        year=currentYear, 
-        month=yearChangeDate.month + 1, // months are 0-11 in JS
-        day=yearChangeDate.day, 
-        hour=0, 
-        minute=0, 
-        second=0
-      );
-      
-      // Determine the effective change date (current or previous year)
-      let effectiveChangeDate = thisYearChangeDate;
-      if (currentDate < thisYearChangeDate) {
-        // If current date is before this year's change date, use last year's
-        effectiveChangeDate = timestamp(
-          year=currentYear - 1, 
-          month=yearChangeDate.month + 1, 
-          day=yearChangeDate.day, 
-          hour=0, 
-          minute=0, 
-          second=0
-        );
-      }
-      
-      // Get all work appointments since the effective change date where user is a confirmed participant
-      let workAppointments = get(
-        get(/databases/$(database)/documents/workAppointments)
-          .where('endTime', '>=', effectiveChangeDate)
-          .where('participants', 'array-contains', {
-            userId: userId,
-            status: 'confirmed'
-          })
-      ).docs.map(doc => doc.data());
-      
-      // Calculate total work hours in milliseconds
-      let totalWorkMs = 0;
-      for (let i = 0; i < workAppointments.size(); i++) {
-        let appt = workAppointments[i];
-        let participant = appt.participants.find(p => p.userId == userId);
-        
-        // Use participant's times if available, otherwise use appointment times
-        let start = participant && participant.startTime ? 
-                   participant.startTime : appt.startTime;
-        let end = participant && participant.endTime ? 
-                 participant.endTime : appt.endTime;
-                 
-        // Add duration in milliseconds
-        totalWorkMs += end.seconds * 1000 + end.nanoseconds / 1000000 - 
-                      (start.seconds * 1000 + start.nanoseconds / 1000000);
-      }
-      
-      // Convert threshold to milliseconds (hours * 3600 * 1000)
-      let thresholdMs = thresholdHours * 3600 * 1000;
-      
-      return totalWorkMs >= thresholdMs;
-    }
 
     // User collection rules
     match /users/{userId} {
@@ -165,12 +91,10 @@ service cloud.firestore {
     match /boatReservations/{reservationId} {
       allow read: if isMember();
       allow create: if isMember() &&
-        // Only allow creation if user is eligible (fees paid and work hours completed or hours skipped)
+        // Only allow creation if user is eligible (fees paid, work hour calculation can not be done in firestore rules)
         (isAdmin() || 
         (request.resource.data.userId == request.auth.uid &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.feesPaid == true &&
-         (hasSufficientWorkHours(request.auth.uid) || 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.skipHours == true)));
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.feesPaid == true));
           
       // Only allow updates that don't change the user ID
       allow update: if 
