@@ -54,7 +54,7 @@ const AppContext = createContext<AppContextType>({
   reloadCurrentUser: async () => { throw new Error('Not implemented'); },
 });
 
-const AUTO_APPROVE_DOMAINS = ['mitglied.segelgruppe-kiel.de'];
+const AUTO_APPROVE_DOMAINS = ['mitglied.segelgruppe-kiel.de', 'segelgruppe-kiel.de'];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);

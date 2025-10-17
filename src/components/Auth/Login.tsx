@@ -23,8 +23,6 @@ export const Login: React.FC = () => {
 
   const { signIn, currentUser } = useApp();
 
-
-
   const handleGoogleAuth = async () => {
     setError('');
     setLoading(true);
