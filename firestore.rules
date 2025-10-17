@@ -35,7 +35,7 @@ service cloud.firestore {
     function isAllowedDomain() {
       return request.auth != null && 
              request.auth.token.email != null && 
-             request.auth.token.email.matches('.*@mitglied\.segelgruppe-kiel\.de$');
+             request.auth.token.email.matches('.*@mitglied\\.segelgruppe-kiel\\.de$');
     }
 
     // User collection rules
@@ -56,7 +56,7 @@ service cloud.firestore {
           (isAllowedDomain() && 
            request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) &&
            request.resource.data.roles.hasOnly(['MEMBER']) &&
-           request.resource.data.email.matches('.*@mitglied\.segelgruppe-kiel\.de$')) ||
+           request.resource.data.email.matches('.*@mitglied\\.segelgruppe-kiel\\.de$')) ||
           // Standard applicant registration
           (request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) &&
            request.resource.data.roles.hasOnly(['APPLICANT']))
