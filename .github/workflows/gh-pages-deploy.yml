@@ -11,9 +11,12 @@ on:
       - 'firestore.rules'
       - '.github/workflows/firebase-deploy-rules.yml'
 
+permissions:
+  contents: write
+
 jobs:
-  deploy:
-    name: Deploy
+  build-and-deploy:
+    name: Build and Deploy
     runs-on: ubuntu-latest
     
     steps:
@@ -26,7 +29,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '22.x'
           cache: 'npm'
 
       - name: Install dependencies
