@@ -341,7 +341,7 @@ export const MemberList: React.FC = () => {
         </DialogTitle>
         <DialogContent>
           <TextField
-            style={{ wordWrap: 'break-word' }}
+            sx={{ wordWrap: 'break-word' }}
             label="E-Mail"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
