@@ -57,6 +57,7 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
   const { canReserve } = useMemberReservationEligibility();
   const { enqueueSnackbar } = useSnackbar();
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     boatId: '',
     title: '',
@@ -74,16 +75,25 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
   });
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     const [hasOverlapping, , warningConflicts] = await hasOverlappingReservations(formData.boatId);
     if (hasOverlapping) {
       enqueueSnackbar('Dieses Boot ist in dem gewählten Zeitraum bereits reserviert.', { variant: 'error' });
+      setIsSubmitting(false);
       return;
     }
-    if (!currentUser) return;
+    if (!currentUser) {
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       const selectedBoat = boats.find(boat => boat.id === formData.boatId);
-      if (!selectedBoat) return;
+      if (!selectedBoat) {
+        setIsSubmitting(false);
+        return;
+      }
 
       const canCreateFinalReservation = canReserve;
       const requestedStatus = canCreateFinalReservation ? formData.status : 'draft';
@@ -95,7 +105,8 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
             ? 'pending'
             : 'approved';
 
-      const reservation: Omit<BoatReservation, 'id' | 'createdAt' | 'updatedAt'> = {
+      const now = new Date();
+      const reservation: Omit<BoatReservation, 'id'> = {
         boatId: formData.boatId,
         userId: currentUser.id,
         userName: currentUser.displayName,
@@ -106,21 +117,21 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
         status: finalStatus,
         visibility: formData.visibility,
         publicDetails: formData.visibility === 'public'
-          ? { freeSeatsText: formData.freeSeatsText || 'Mitfahrplätze verfügbar' }
+          ? { freeSeatsText: formData.freeSeatsText }
           : undefined,
         eligibilitySnapshot: {
           feesPaid: currentUser.feesPaid,
           skipHours: currentUser.skipHours === true,
           workHoursMet: canCreateFinalReservation,
         },
+        createdAt: now,
+        updatedAt: now,
       };
 
       const reservationId = await database.addDocument('boatReservations', reservation);
       await syncPublicReservationFeed(database, {
         ...reservation,
         id: reservationId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
       }, boats);
 
       if (warningConflicts.length > 0) {
@@ -141,6 +152,8 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
     } catch (error) {
       console.error('Error creating reservation:', error);
       enqueueSnackbar('Fehler beim Erstellen der Reservierung', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -271,6 +284,7 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
             variant="contained"
             color="primary"
             startIcon={<SaveIcon />}
+            disabled={isSubmitting}
           >
             Reservieren
           </Button>

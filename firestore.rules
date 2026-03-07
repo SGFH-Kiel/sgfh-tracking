@@ -48,7 +48,7 @@ service cloud.firestore {
 
     function reservationCreateKeysValid() {
       return request.resource.data.keys().hasOnly([
-        'boatId', 'userId', 'userName', 'title', 'description', 'startTime', 'endTime', 'status', 'visibility', 'publicDetails', 'eligibilitySnapshot'
+        'boatId', 'userId', 'userName', 'title', 'description', 'startTime', 'endTime', 'status', 'visibility', 'publicDetails', 'eligibilitySnapshot', 'createdAt', 'updatedAt'
       ]);
     }
 
@@ -78,8 +78,23 @@ service cloud.firestore {
     function ownerCanEditReservation() {
       return resource.data.userId == request.auth.uid &&
         reservationIdentityUnchanged() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'startTime', 'endTime', 'visibility', 'publicDetails', 'status']) &&
-        ['draft', 'cancelled'].hasAny([request.resource.data.status]);
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'startTime', 'endTime', 'visibility', 'publicDetails', 'status', 'updatedAt']) &&
+        (
+          // Owner can edit draft reservation fields (status stays draft)
+          (resource.data.status == 'draft' && request.resource.data.status == 'draft') ||
+          // Owner can finalize draft → pending if eligible
+          (resource.data.status == 'draft' &&
+            request.resource.data.status == 'pending' &&
+            (currentUserDoc().feesPaid == true || currentUserDoc().skipHours == true)) ||
+          // Owner can finalize draft → approved only if boat does not require approval
+          (resource.data.status == 'draft' &&
+            request.resource.data.status == 'approved' &&
+            (currentUserDoc().feesPaid == true || currentUserDoc().skipHours == true) &&
+            !get(/databases/$(database)/documents/boats/$(resource.data.boatId)).data.requiresApproval) ||
+          // Owner can cancel from any active status
+          (resource.data.status in ['draft', 'pending', 'approved'] &&
+            request.resource.data.status == 'cancelled')
+        );
     }
 
     function validWorkAppointment(data) {
@@ -112,7 +127,7 @@ service cloud.firestore {
         linkedReservation(reservationId).startTime == request.resource.data.startTime &&
         linkedReservation(reservationId).endTime == request.resource.data.endTime &&
         linkedReservation(reservationId).visibility == 'public' &&
-        !['rejected', 'cancelled'].hasAny([linkedReservation(reservationId).status]);
+        !['draft', 'rejected', 'cancelled'].hasAny([linkedReservation(reservationId).status]);
     }
 
     match /users/{userId} {
@@ -130,7 +145,7 @@ service cloud.firestore {
         (request.auth.uid == userId &&
           request.resource.data.email == resource.data.email &&
           request.resource.data.roles == resource.data.roles &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'lastLoginAt', 'onboardingState']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'lastLoginAt', 'onboardingState', 'updatedAt']) &&
           (!('onboardingState' in request.resource.data) || ['not_started', 'skipped', 'completed'].hasAny([request.resource.data.onboardingState]))) ||
         (isAdmin() && (!request.resource.data.roles.hasAny(['SUPERADMIN']) || (resource.data.roles.hasAny(['SUPERADMIN']) && request.resource.data.roles.hasAny(['SUPERADMIN'])))) ||
         isSuperAdmin();
@@ -156,7 +171,7 @@ service cloud.firestore {
 
       allow update: if isAdmin() || isBootswart(resource.data.boatId) || ownerCanEditReservation();
 
-      allow delete: if isAdmin() || (isMember() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin() || (isMember() && resource.data.userId == request.auth.uid && resource.data.status == 'draft');
     }
 
     match /publicBoatReservations/{reservationId} {

@@ -11,7 +11,7 @@ export async function syncPublicReservationFeed(
 ): Promise<void> {
   const boat = boats.find((entry) => entry.id === reservation.boatId);
   const isPublic = reservation.visibility === 'public';
-  const isVisibleStatus = reservation.status !== 'cancelled' && reservation.status !== 'rejected';
+  const isVisibleStatus = reservation.status !== 'cancelled' && reservation.status !== 'rejected' && reservation.status !== 'draft';
 
   if (!boat || !isPublic || !isVisibleStatus) {
     try {

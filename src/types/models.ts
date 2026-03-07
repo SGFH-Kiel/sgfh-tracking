@@ -96,7 +96,7 @@ export interface PublicBoatReservation {
   startTime: Date;
   endTime: Date;
   visibility: ReservationVisibility;
-  reservationStatus: Exclude<ReservationStatus, 'rejected' | 'cancelled'>;
+  reservationStatus: Exclude<ReservationStatus, 'draft' | 'rejected' | 'cancelled'>;
   freeSeatsText?: string;
   updatedAt: Date;
 }

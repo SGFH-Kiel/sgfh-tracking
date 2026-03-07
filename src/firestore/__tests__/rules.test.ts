@@ -1,6 +1,6 @@
 import { initializeTestEnvironment, RulesTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
 import { readFileSync } from 'fs';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 describe('firestore rules', () => {
   let testEnv: RulesTestEnvironment;
@@ -124,6 +124,184 @@ describe('firestore rules', () => {
       endTime: new Date('2025-01-01T12:00:00Z'),
       visibility: 'public',
       reservationStatus: 'approved',
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows member to create draft reservation with createdAt and updatedAt', async () => {
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(setDoc(doc(db, 'boatReservations', 'r-ts'), {
+      boatId: 'boat-1',
+      userId: 'member-1',
+      userName: 'Mitglied',
+      title: 'Tour',
+      description: '',
+      startTime: new Date('2025-01-01T10:00:00Z'),
+      endTime: new Date('2025-01-01T12:00:00Z'),
+      status: 'draft',
+      visibility: 'private',
+      eligibilitySnapshot: { feesPaid: true, skipHours: false, workHoursMet: true },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows eligible owner to finalize draft to pending', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'boatReservations', 'r-draft'), {
+        boatId: 'boat-1',
+        userId: 'member-1',
+        userName: 'Mitglied',
+        title: 'Tour',
+        description: '',
+        startTime: new Date('2025-01-01T10:00:00Z'),
+        endTime: new Date('2025-01-01T12:00:00Z'),
+        status: 'draft',
+        visibility: 'private',
+        eligibilitySnapshot: { feesPaid: true, skipHours: false, workHoursMet: true },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'boatReservations', 'r-draft'), {
+      status: 'pending',
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('denies ineligible owner from finalizing draft', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'users', 'member-nofee'), {
+        email: 'nofee@example.com',
+        displayName: 'Ohne Beitrag',
+        roles: ['MEMBER'],
+        feesPaid: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      await setDoc(doc(db, 'boatReservations', 'r-nofee'), {
+        boatId: 'boat-1',
+        userId: 'member-nofee',
+        userName: 'Ohne Beitrag',
+        title: 'Tour',
+        description: '',
+        startTime: new Date('2025-01-01T10:00:00Z'),
+        endTime: new Date('2025-01-01T12:00:00Z'),
+        status: 'draft',
+        visibility: 'private',
+        eligibilitySnapshot: { feesPaid: false, skipHours: false, workHoursMet: false },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('member-nofee').firestore();
+    await assertFails(updateDoc(doc(db, 'boatReservations', 'r-nofee'), {
+      status: 'pending',
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows owner to cancel own draft reservation', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'boatReservations', 'r-cancel'), {
+        boatId: 'boat-1',
+        userId: 'member-1',
+        userName: 'Mitglied',
+        title: 'Tour',
+        description: '',
+        startTime: new Date('2025-01-01T10:00:00Z'),
+        endTime: new Date('2025-01-01T12:00:00Z'),
+        status: 'draft',
+        visibility: 'private',
+        eligibilitySnapshot: { feesPaid: true, skipHours: false, workHoursMet: true },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'boatReservations', 'r-cancel'), {
+      status: 'cancelled',
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('denies owner from setting status=approved directly when boat requiresApproval', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'boatReservations', 'r-req-approval'), {
+        boatId: 'boat-1',
+        userId: 'member-1',
+        userName: 'Mitglied',
+        title: 'Tour',
+        description: '',
+        startTime: new Date('2025-01-01T10:00:00Z'),
+        endTime: new Date('2025-01-01T12:00:00Z'),
+        status: 'draft',
+        visibility: 'private',
+        eligibilitySnapshot: { feesPaid: true, skipHours: false, workHoursMet: true },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertFails(updateDoc(doc(db, 'boatReservations', 'r-req-approval'), {
+      status: 'approved',
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows owner to delete own draft reservation', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'boatReservations', 'r-del-draft'), {
+        boatId: 'boat-1',
+        userId: 'member-1',
+        userName: 'Mitglied',
+        title: 'Tour',
+        description: '',
+        startTime: new Date('2025-01-01T10:00:00Z'),
+        endTime: new Date('2025-01-01T12:00:00Z'),
+        status: 'draft',
+        visibility: 'private',
+        eligibilitySnapshot: { feesPaid: true, skipHours: false, workHoursMet: true },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(deleteDoc(doc(db, 'boatReservations', 'r-del-draft')));
+  });
+
+  it('denies owner from deleting non-draft reservation', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'boatReservations', 'r-del-approved'), {
+        boatId: 'boat-1',
+        userId: 'member-1',
+        userName: 'Mitglied',
+        title: 'Tour',
+        description: '',
+        startTime: new Date('2025-01-01T10:00:00Z'),
+        endTime: new Date('2025-01-01T12:00:00Z'),
+        status: 'approved',
+        visibility: 'private',
+        eligibilitySnapshot: { feesPaid: true, skipHours: false, workHoursMet: true },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertFails(deleteDoc(doc(db, 'boatReservations', 'r-del-approved')));
+  });
+
+  it('allows user to update onboardingState with updatedAt', async () => {
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'users', 'member-1'), {
+      onboardingState: 'completed',
       updatedAt: new Date(),
     }));
   });

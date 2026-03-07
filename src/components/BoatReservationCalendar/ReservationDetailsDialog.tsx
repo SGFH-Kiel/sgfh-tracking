@@ -57,6 +57,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   const { canReserve } = useMemberReservationEligibility();
   const [boat, setBoat] = useState<Boat | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editedData, setEditedData] = useState<EditableReservation>(() => ({
     title: reservation.title,
     description: reservation.description || '',
@@ -94,8 +95,9 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   }, [reservation.boatId, fetchBoat]);
 
   const handleCancel = async () => {
-    if (!currentUser) return;
+    if (!currentUser || isSubmitting) return;
 
+    setIsSubmitting(true);
     try {
       await database.updateDocument('boatReservations', reservation.id, {
         status: 'cancelled',
@@ -106,6 +108,9 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
       onClose();
     } catch (error) {
       console.error('Error canceling reservation:', error);
+      enqueueSnackbar('Fehler beim Stornieren der Reservierung', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -113,8 +118,9 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   const isBootswartOrAdmin = (boat && currentUser && boat.bootswart === currentUser.id) || isAdmin;
 
   const handleStatusChange = async (newStatus: 'approved' | 'rejected' | 'cancelled') => {
-    if (!isBootswartOrAdmin) return;
+    if (!isBootswartOrAdmin || isSubmitting) return;
 
+    setIsSubmitting(true);
     try {
       await database.updateDocument('boatReservations', reservation.id, {
         status: newStatus,
@@ -129,6 +135,9 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
       onClose();
     } catch (error) {
       console.error('Error updating reservation status:', error);
+      enqueueSnackbar('Fehler beim Aktualisieren des Status', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -141,19 +150,27 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   const { enqueueSnackbar } = useSnackbar();
 
   const handleSaveChanges = async () => {
+    if (isSubmitting) return;
+
+    // Check times
+    if (editedData.startTime.isAfter(editedData.endTime)) {
+      enqueueSnackbar('Die Endzeit muss später als die Startzeit sein.', { variant: 'error' });
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       // Check for overlapping reservations before saving
       const [hasOverlapping] = await hasOverlappingReservations(boat?.id);
       if (hasOverlapping) {
         enqueueSnackbar('Es gibt bereits eine Reservierung in diesem Zeitraum.', { variant: 'error' });
+        setIsSubmitting(false);
         return;
       }
 
-      // Check times
-      if (editedData.startTime.isAfter(editedData.endTime)) {
-        enqueueSnackbar('Die Endzeit muss später als die Startzeit sein.', { variant: 'error' });
-        return;
-      }
+      const resolvedPublicDetails = editedData.visibility === 'public'
+        ? { freeSeatsText: editedData.freeSeatsText }
+        : null;
 
       await database.updateDocument('boatReservations', reservation.id, {
         title: editedData.title,
@@ -161,9 +178,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
         startTime: editedData.startTime.toDate(),
         endTime: editedData.endTime.toDate(),
         visibility: editedData.visibility,
-        publicDetails: editedData.visibility === 'public'
-          ? { freeSeatsText: editedData.freeSeatsText || 'Mitfahrplätze verfügbar' }
-          : undefined,
+        publicDetails: resolvedPublicDetails,
         updatedAt: new Date(),
       });
       await syncPublicReservationFeed(database, {
@@ -173,9 +188,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
         startTime: editedData.startTime.toDate(),
         endTime: editedData.endTime.toDate(),
         visibility: editedData.visibility,
-        publicDetails: editedData.visibility === 'public'
-          ? { freeSeatsText: editedData.freeSeatsText || 'Mitfahrplätze verfügbar' }
-          : undefined,
+        publicDetails: resolvedPublicDetails,
         updatedAt: new Date(),
       }, boat ? [boat] : []);
       onUpdate();
@@ -184,6 +197,8 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
     } catch (error) {
       console.error('Error updating reservation:', error);
       enqueueSnackbar('Fehler beim Aktualisieren der Reservierung', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -192,9 +207,11 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
       enqueueSnackbar('Die Vormerkung kann erst finalisiert werden, wenn die Voraussetzungen erfüllt sind.', { variant: 'warning' });
       return;
     }
+    if (isSubmitting) return;
 
     const nextStatus = boat?.requiresApproval && currentUser?.id !== boat?.bootswart ? 'pending' : 'approved';
 
+    setIsSubmitting(true);
     try {
       await database.updateDocument('boatReservations', reservation.id, {
         status: nextStatus,
@@ -210,6 +227,8 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
     } catch (error) {
       console.error('Error finalizing reservation draft:', error);
       enqueueSnackbar('Fehler beim Finalisieren der Vormerkung', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -394,11 +413,12 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50' }}>
         <Box sx={{ display: 'flex', gap: 2, width: '100%', justifyContent: 'space-between' }}>
           <Box>
-            {(isOwner || isBootswartOrAdmin) && (
+            {(isOwner || isBootswartOrAdmin) && !['cancelled', 'rejected'].includes(reservation.status) && (
               <Button
                 color="error"
                 variant="outlined"
                 onClick={handleCancel}
+                disabled={isSubmitting}
                 startIcon={<DeleteIcon />}
               >
                 Stornieren
@@ -422,6 +442,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
                   <Button
                     onClick={() => setIsEditing(false)}
                     variant="outlined"
+                    disabled={isSubmitting}
                     startIcon={<CloseIcon />}
                   >
                     Abbrechen
@@ -429,6 +450,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
                   <Button
                     onClick={handleSaveChanges}
                     variant="contained"
+                    disabled={isSubmitting}
                     startIcon={<SaveIcon />}
                   >
                     Speichern
@@ -447,6 +469,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
                   onClick={() => handleStatusChange('rejected')}
                   color="warning"
                   variant="outlined"
+                  disabled={isSubmitting}
                   startIcon={<CloseIcon />}
                 >
                   Ablehnen
@@ -455,6 +478,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
                   onClick={() => handleStatusChange('approved')}
                   color="success"
                   variant="contained"
+                  disabled={isSubmitting}
                   startIcon={<CheckIcon />}
                 >
                   Genehmigen
@@ -466,6 +490,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
                 onClick={handleFinalizeDraft}
                 color="success"
                 variant="contained"
+                disabled={isSubmitting}
                 startIcon={<CheckIcon />}
               >
                 Finalisieren

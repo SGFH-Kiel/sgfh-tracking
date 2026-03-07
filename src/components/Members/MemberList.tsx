@@ -39,6 +39,7 @@ import {
 import { BoatReservation, User, UserRole } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
 import { useCalculateWorkHours } from '../../hooks/memberHooks';
+import { deletePublicReservationFeed } from '../../domain/reservationSync';
 import humanizeDuration from 'humanize-duration';
 
 const humanizer = humanizeDuration.humanizer({ language: 'de', round: true, units: ['h'] });
@@ -160,8 +161,9 @@ export const MemberList: React.FC = () => {
 
     try {
       await deactivateUser(memberToDeactivate.id);
-      // also delete all reservations of the member
+      // also delete all reservations of the member and clean up public feed projections
       const reservations = await database.getDocuments<BoatReservation>('boatReservations', [{ field: 'userId', operator: 'eq', value: memberToDeactivate.id }]);
+      await Promise.all(reservations.map(r => deletePublicReservationFeed(database, r.id)));
       await database.deleteDocuments('boatReservations', reservations.map(r => r.id));
       reload();
       enqueueSnackbar('Mitglied wurde deaktiviert.', { variant: 'success' });
@@ -190,8 +192,9 @@ export const MemberList: React.FC = () => {
 
     try {
       await deleteUser(memberToDelete.id);
-      // delete all reservations of the member
+      // delete all reservations of the member and clean up public feed projections
       const reservations = await database.getDocuments<BoatReservation>('boatReservations', [{ field: 'userId', operator: 'eq', value: memberToDelete.id }]);
+      await Promise.all(reservations.map(r => deletePublicReservationFeed(database, r.id)));
       await database.deleteDocuments('boatReservations', reservations.map(r => r.id));
       reload();
       enqueueSnackbar('Mitglied wurde gelöscht.', { variant: 'success' });

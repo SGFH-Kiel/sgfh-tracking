@@ -1,22 +1,11 @@
-import { BoatReservation, ReservationStatus, ReservationVisibility } from '../types/models';
+import { BoatReservation, PublicBoatReservation, ReservationStatus, ReservationVisibility } from '../types/models';
 
 export interface ReservationConflictResult {
   hardConflicts: BoatReservation[];
   warningConflicts: BoatReservation[];
 }
 
-export interface PublicReservationFeedItem {
-  id: string;
-  boatId: string;
-  boatName: string;
-  title: string;
-  startTime: Date;
-  endTime: Date;
-  visibility: ReservationVisibility;
-  reservationStatus: ReservationStatus;
-  freeSeatsText?: string;
-  updatedAt: Date;
-}
+export type PublicReservationFeedItem = PublicBoatReservation;
 
 export const HARD_BLOCKING_RESERVATION_STATUSES: ReservationStatus[] = ['pending', 'approved'];
 export const WARNING_ONLY_RESERVATION_STATUSES: ReservationStatus[] = ['draft'];
@@ -72,7 +61,7 @@ export function buildPublicReservationFeedItem(input: {
     startTime: reservation.startTime,
     endTime: reservation.endTime,
     visibility: reservation.visibility,
-    reservationStatus: reservation.status,
+    reservationStatus: reservation.status as PublicBoatReservation['reservationStatus'],
     freeSeatsText: reservation.publicDetails?.freeSeatsText,
     updatedAt: reservation.updatedAt,
   };

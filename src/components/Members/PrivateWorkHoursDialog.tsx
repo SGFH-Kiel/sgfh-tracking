@@ -41,6 +41,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
 }) => {
   const { database, currentUser, isAdmin, isAnyBootswart, boats } = useApp();
   const { enqueueSnackbar } = useSnackbar();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<PrivateWorkHoursFormData>({
     title: '',
     description: '',
@@ -50,7 +51,8 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
   });
 
   const handleSubmit = async () => {
-    if (!currentUser) return;
+    if (!currentUser || isSubmitting) return;
+    setIsSubmitting(true);
 
     const boat = boats.find(b => b.id === formData.boatId);
     const autoConfirm = isAdmin || (boat && isAnyBootswart && boat.bootswart === currentUser.id);
@@ -95,6 +97,8 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
     } catch (error) {
       console.error('Error creating private work hours:', error);
       enqueueSnackbar('Fehler beim Speichern der Arbeitsstunden', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -182,6 +186,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
             variant="contained"
             color="primary"
             startIcon={<SaveIcon />}
+            disabled={isSubmitting}
           >
             Speichern
           </Button>

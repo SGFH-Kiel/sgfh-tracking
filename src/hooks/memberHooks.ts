@@ -100,7 +100,7 @@ export const useCalculateWorkHours = (onlyAppointments?: WorkAppointment[], only
     } finally {
       setLoading(false);
     }
-  }, [database, systemConfig.yearChangeDate]);
+  }, [database, systemConfig.yearChangeDate.getTime()]);
 
   useEffect(() => {
     fetchData(onlyAppointments, onlyUser);
