@@ -1,168 +1,208 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
 
+    function currentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function isNotDeactivated() {
-      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return !('deactivated' in userData) || userData.deactivated != true;
+      return isAuthenticated() && (!('deactivated' in currentUserDoc()) || currentUserDoc().deactivated != true);
     }
 
     function isMember() {
-      return isAuthenticated() && isNotDeactivated() && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['MEMBER', 'ADMIN', 'SUPERADMIN']);
+      return isAuthenticated() && isNotDeactivated() && currentUserDoc().roles.hasAny(['MEMBER', 'ADMIN', 'SUPERADMIN']);
     }
-    
+
     function isSuperAdmin() {
-      return isMember() && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['SUPERADMIN']);
+      return isMember() && currentUserDoc().roles.hasAny(['SUPERADMIN']);
     }
-    
+
     function isAdmin() {
-      return isMember() && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['SUPERADMIN', 'ADMIN']);
+      return isMember() && currentUserDoc().roles.hasAny(['SUPERADMIN', 'ADMIN']);
     }
-    
+
     function isBootswart(boatId) {
-      return isMember() &&
-        (boatId == "" || boatId == null ||
-        get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart == request.auth.uid);
+      return isMember() && boatId != null && boatId != '' && get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart == request.auth.uid;
     }
-    
+
     function isAllowedDomain() {
-      return request.auth != null && 
-             request.auth.token.email != null && 
-             (request.auth.token.email.matches('.*@mitglied\\.segelgruppe-kiel\\.de$') || request.auth.token.email.matches('.*@segelgruppe-kiel\\.de$'));
+      return request.auth != null && request.auth.token.email != null &&
+        (request.auth.token.email.matches('.*@mitglied\\.segelgruppe-kiel\\.de$') || request.auth.token.email.matches('.*@segelgruppe-kiel\\.de$'));
     }
 
-    // User collection rules
-    match /users/{userId} {
-      // Allow users to read their own document
-      allow read: if (request.auth != null && request.auth.uid == userId) || isMember();
+    function hasTimestampRange(data) {
+      return data.startTime is timestamp && data.endTime is timestamp && data.endTime > data.startTime;
+    }
 
-      // Allow members to list all users
+    function hasValidReservationStatus(status) {
+      return ['draft', 'pending', 'approved', 'rejected', 'cancelled'].hasAny([status]);
+    }
+
+    function hasValidReservationVisibility(visibility) {
+      return ['private', 'public'].hasAny([visibility]);
+    }
+
+    function reservationCreateKeysValid() {
+      return request.resource.data.keys().hasOnly([
+        'boatId', 'userId', 'userName', 'title', 'description', 'startTime', 'endTime', 'status', 'visibility', 'publicDetails', 'eligibilitySnapshot', 'createdAt', 'updatedAt'
+      ]);
+    }
+
+    function isOwnReservationWrite() {
+      return request.resource.data.userId == request.auth.uid && request.resource.data.userName == currentUserDoc().displayName;
+    }
+
+    function validReservationCreate() {
+      return reservationCreateKeysValid() &&
+        request.resource.data.boatId is string &&
+        request.resource.data.title is string &&
+        hasTimestampRange(request.resource.data) &&
+        hasValidReservationStatus(request.resource.data.status) &&
+        hasValidReservationVisibility(request.resource.data.visibility) &&
+        (!('publicDetails' in request.resource.data) || request.resource.data.publicDetails.freeSeatsText is string) &&
+        request.resource.data.eligibilitySnapshot.feesPaid is bool &&
+        request.resource.data.eligibilitySnapshot.skipHours is bool &&
+        request.resource.data.eligibilitySnapshot.workHoursMet is bool;
+    }
+
+    function reservationIdentityUnchanged() {
+      return request.resource.data.userId == resource.data.userId &&
+        request.resource.data.userName == resource.data.userName &&
+        request.resource.data.boatId == resource.data.boatId;
+    }
+
+    function ownerCanEditReservation() {
+      return resource.data.userId == request.auth.uid &&
+        reservationIdentityUnchanged() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'startTime', 'endTime', 'visibility', 'publicDetails', 'status', 'updatedAt']) &&
+        (
+          // Owner can edit draft reservation fields (status stays draft)
+          (resource.data.status == 'draft' && request.resource.data.status == 'draft') ||
+          // Owner can finalize draft → pending if eligible
+          (resource.data.status == 'draft' &&
+            request.resource.data.status == 'pending' &&
+            (currentUserDoc().feesPaid == true || currentUserDoc().skipHours == true)) ||
+          // Owner can finalize draft → approved only if boat does not require approval
+          (resource.data.status == 'draft' &&
+            request.resource.data.status == 'approved' &&
+            (currentUserDoc().feesPaid == true || currentUserDoc().skipHours == true) &&
+            !get(/databases/$(database)/documents/boats/$(resource.data.boatId)).data.requiresApproval) ||
+          // Owner can cancel from any active status
+          (resource.data.status in ['draft', 'pending', 'approved'] &&
+            request.resource.data.status == 'cancelled')
+        );
+    }
+
+    function validWorkAppointment(data) {
+      return data.title is string &&
+        data.description is string &&
+        data.participants is list &&
+        data.supplies is list &&
+        hasTimestampRange(data);
+    }
+
+    function linkedReservation(reservationId) {
+      return get(/databases/$(database)/documents/boatReservations/$(reservationId)).data;
+    }
+
+    function canManageLinkedPublicReservation(reservationId) {
+      return isMember() &&
+        linkedReservation(reservationId) != null &&
+        (
+          linkedReservation(reservationId).userId == request.auth.uid ||
+          isAdmin() ||
+          isBootswart(linkedReservation(reservationId).boatId)
+        );
+    }
+
+    function validPublicReservationProjection(reservationId) {
+      return request.resource.data.keys().hasOnly(['boatId', 'boatName', 'title', 'startTime', 'endTime', 'visibility', 'reservationStatus', 'freeSeatsText', 'updatedAt']) &&
+        linkedReservation(reservationId) != null &&
+        linkedReservation(reservationId).boatId == request.resource.data.boatId &&
+        linkedReservation(reservationId).title == request.resource.data.title &&
+        linkedReservation(reservationId).startTime == request.resource.data.startTime &&
+        linkedReservation(reservationId).endTime == request.resource.data.endTime &&
+        linkedReservation(reservationId).visibility == 'public' &&
+        !['draft', 'rejected', 'cancelled'].hasAny([linkedReservation(reservationId).status]);
+    }
+
+    match /users/{userId} {
+      allow read: if (request.auth != null && request.auth.uid == userId) || isMember();
       allow list: if isMember();
-      
-      // Allow creation for:
-      // 1. Admins
-      // 2. Users with allowed domain (auto-approve as MEMBER)
-      // 3. Self-registration as APPLICANT
-      allow create: if isAdmin() || 
+
+      allow create: if isAdmin() ||
         (request.auth.uid == userId && (
-          // Auto-approve if from allowed domain
-          (isAllowedDomain() && 
-           request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) &&
-           request.resource.data.roles.hasOnly(['MEMBER']) &&
-           (request.resource.data.email.matches('.*@mitglied\\.segelgruppe-kiel\\.de$') || request.resource.data.email.matches('.*@segelgruppe-kiel\\.de$'))) ||
-          // Standard applicant registration
-          (request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) &&
-           request.resource.data.roles.hasOnly(['APPLICANT']))
+          (isAllowedDomain() && request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) && request.resource.data.roles.hasOnly(['MEMBER']) &&
+            (request.resource.data.email.matches('.*@mitglied\\.segelgruppe-kiel\\.de$') || request.resource.data.email.matches('.*@segelgruppe-kiel\\.de$'))) ||
+          (request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) && request.resource.data.roles.hasOnly(['APPLICANT']))
         ));
-      
-      // Users can update their own basic info, admins can update most things, superadmins can update everything
-      allow update: if 
-        // Users can update their own basic info (except email)
-        (request.auth.uid == userId && 
-         request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['displayName', 'lastLoginAt']) &&
-         request.resource.data.email == resource.data.email) || 
-        // Admins can update everything except superadmin role
-        (isAdmin() && 
-         (!request.resource.data.roles.hasAny(['SUPERADMIN']) || 
-          (resource.data.roles.hasAny(['SUPERADMIN']) && request.resource.data.roles.hasAny(['SUPERADMIN'])))) || 
-        // Only superadmins can grant/revoke superadmin role
+
+      allow update: if
+        (request.auth.uid == userId &&
+          request.resource.data.email == resource.data.email &&
+          request.resource.data.roles == resource.data.roles &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'lastLoginAt', 'onboardingState', 'updatedAt']) &&
+          (!('onboardingState' in request.resource.data) || ['not_started', 'skipped', 'completed'].hasAny([request.resource.data.onboardingState]))) ||
+        (isAdmin() && (!request.resource.data.roles.hasAny(['SUPERADMIN']) || (resource.data.roles.hasAny(['SUPERADMIN']) && request.resource.data.roles.hasAny(['SUPERADMIN'])))) ||
         isSuperAdmin();
-      
-      // Only admins can delete users
+
       allow delete: if isAdmin();
     }
 
-    // Boat collection rules
     match /boats/{boatId} {
       allow read: if isMember();
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || isBootswart(boatId);
     }
 
-    // Boat reservation rules
     match /boatReservations/{reservationId} {
       allow read: if isMember();
-      allow create: if isMember() &&
-        // Only allow creation if user is eligible (fees paid, work hour calculation can not be done in firestore rules)
-        (isAdmin() || 
-        (request.resource.data.userId == request.auth.uid &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.feesPaid == true));
-          
-      // Only allow updates that don't change the user ID
-      allow update: if 
-        (isAdmin() || 
-        (isMember() && 
-         resource.data.userId == request.auth.uid &&
-         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId']) || 
-          request.resource.data.userId == resource.data.userId)));
-          
-      allow delete: if isAdmin() || 
-        (isMember() && resource.data.userId == request.auth.uid);
+      allow create: if isMember() && isOwnReservationWrite() && validReservationCreate() &&
+        (
+          isAdmin() ||
+          request.resource.data.status == 'draft' ||
+          currentUserDoc().feesPaid == true ||
+          currentUserDoc().skipHours == true
+        );
+
+      allow update: if isAdmin() || isBootswart(resource.data.boatId) || ownerCanEditReservation();
+
+      allow delete: if isAdmin() || (isMember() && resource.data.userId == request.auth.uid && resource.data.status == 'draft');
     }
 
-    // Work hours rules
+    match /publicBoatReservations/{reservationId} {
+      allow read: if true;
+      allow create, update: if isAdmin() || (canManageLinkedPublicReservation(reservationId) && validPublicReservationProjection(reservationId));
+      allow delete: if isAdmin() || canManageLinkedPublicReservation(reservationId);
+    }
+
     match /workHours/{docId} {
       allow read: if isMember();
-      allow create: if isMember() &&
-        (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update, delete: if isMember() &&
-        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isMember() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isMember() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // Work appointment rules
     match /workAppointments/{appointmentId} {
       allow read: if isMember();
-      
-      // Only admins and bootswarts can create appointments
-      allow create: if isAdmin() || isBootswart(request.resource.data.boatId) ||
-      (
-        isMember()
-        && request.resource.data.private
-        && request.resource.data.participants.size() == 1
-        && request.resource.data.participants[0].userId == request.auth.uid
-      );
-      
-      // Members can update ONLY the participants array for themselves
-      allow update: if 
-        // Admins and bootswarts can update everything
-        isAdmin() || isBootswart(request.resource.data.boatId) ||
-        // Members can only update participants array and only for themselves
-        (isMember() && 
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']) &&
+
+      allow create: if (isAdmin() || isBootswart(request.resource.data.boatId) ||
         (
-          // Either adding or removing or updating exactly one participant
-          (
-            // Case 1: Adding themselves
-            (request.resource.data.participants.removeAll(resource.data.participants).size() == 1 && 
-             resource.data.participants.removeAll(request.resource.data.participants).size() == 0 &&
-             request.resource.data.participants.removeAll(resource.data.participants)[0].userId == request.auth.uid) ||
-            // Case 2: Removing themselves (only when status is pending)
-            (resource.data.participants.removeAll(request.resource.data.participants).size() == 1 && 
-             request.resource.data.participants.removeAll(resource.data.participants).size() == 0 &&
-             resource.data.participants.removeAll(request.resource.data.participants)[0].userId == request.auth.uid &&
-             request.resource.data.participants.removeAll(resource.data.participants)[0].status == "pending") ||
-            // Case 3: Updating their own status
-            (request.resource.data.participants.removeAll(resource.data.participants).size() == 1 && 
-             resource.data.participants.removeAll(request.resource.data.participants).size() == 1 &&
-             request.resource.data.participants.removeAll(resource.data.participants)[0].userId == request.auth.uid &&
-             resource.data.participants.removeAll(request.resource.data.participants)[0].userId == request.auth.uid &&
-             resource.data.participants.removeAll(request.resource.data.participants)[0].status == "pending")
-          )
-        ));
-      
-      // Only admins and bootswarts can delete appointments
-      allow delete: if isAdmin() || isBootswart(request.resource.data.boatId);
+          isMember() &&
+          request.resource.data.private == true &&
+          request.resource.data.participants.size() == 1 &&
+          request.resource.data.participants[0].userId == request.auth.uid
+        )) && validWorkAppointment(request.resource.data);
+
+      allow update: if isAdmin() || isBootswart(resource.data.boatId) ||
+        (isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']) && request.resource.data.participants is list);
+
+      allow delete: if isAdmin() || isBootswart(resource.data.boatId) || (resource.data.private == true && resource.data.participants.size() == 1 && resource.data.participants[0].userId == request.auth.uid);
     }
 
-    // System config rules
     match /systemConfig/default {
       allow read: if isAuthenticated();
       allow write: if isSuperAdmin();

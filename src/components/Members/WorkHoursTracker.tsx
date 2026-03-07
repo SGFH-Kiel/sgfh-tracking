@@ -201,7 +201,20 @@ export const WorkHoursTracker: React.FC = () => {
     ]);
   }, [setBreadcrumbs]);
 
-  const currentUserHours = useMemo(() => userWorkHours.find(({ user }) => user.id === currentUser?.id) || { completedDuration: 0, upcomingDuration: 0, declinedDuration: 0, appointments: { completed: [], upcoming: [], declined: [] } }, [userWorkHours, currentUser]);
+  const currentUserHours = useMemo(() => userWorkHours.find(({ user }) => user.id === currentUser?.id) || {
+    user: currentUser!,
+    completedDuration: 0,
+    upcomingDuration: 0,
+    declinedDuration: 0,
+    completedMinutes: 0,
+    upcomingMinutes: 0,
+    declinedMinutes: 0,
+    requiredMinutes: Math.round(systemConfig.workHourThreshold * 60),
+    remainingMinutes: Math.round(systemConfig.workHourThreshold * 60),
+    status: 'open' as const,
+    accountingEntries: [],
+    appointments: { completed: [], upcoming: [], declined: [] }
+  }, [userWorkHours, currentUser, systemConfig.workHourThreshold]);
   // hours to duration
   const required = systemConfig.workHourThreshold * 3600000;
   const userAppointments = useMemo(() => {
@@ -211,7 +224,7 @@ export const WorkHoursTracker: React.FC = () => {
       ...(currentUserHours?.appointments?.declined || []).map(apt => ({ ...apt, status: 'declined' }))
     ];
   }, [currentUserHours]);
-  const hoursToDo = humanizer(required - currentUserHours?.completedDuration - currentUserHours?.upcomingDuration);
+  const hoursToDo = humanizer(Math.max(0, required - currentUserHours?.completedDuration - currentUserHours?.upcomingDuration));
 
   if (loading || !currentUser) {
     return <CircularProgress />;
@@ -230,15 +243,22 @@ export const WorkHoursTracker: React.FC = () => {
           </Typography>
           <StatusChip
             status={
-              currentUser.skipHours
+              currentUserHours.status === 'paused'
                 ? WORKSTATUS.PAUSED
-                : currentUserHours?.completedDuration >= required
+                : currentUserHours.status === 'done'
                   ? WORKSTATUS.DONE
-                  : currentUserHours?.completedDuration + currentUserHours?.upcomingDuration >= required
+                  : currentUserHours.status === 'planned'
                     ? WORKSTATUS.PLANNED
-                    : WORKSTATUS.OPEN
+                    : currentUserHours.status === 'attention'
+                      ? WORKSTATUS.REJECTED
+                      : WORKSTATUS.OPEN
           } overall={true} sx={{ mt: 1, mb: 2 }} />
         </Box>
+        {currentUserHours.appointments.upcoming.length > 0 && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Sie haben {currentUserHours.appointments.upcoming.length} ausstehende oder zukünftige Einträge. Diese werden erst nach Bestätigung bzw. nach Durchführung vollständig angerechnet.
+          </Alert>
+        )}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4, mt: 2 }}>
           <Box key={currentUser?.id} sx={{ minWidth: '100%' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
@@ -246,7 +266,13 @@ export const WorkHoursTracker: React.FC = () => {
                 title={
                   <Box sx={{ p: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', minWidth: 125 }}>
-                      {currentUserHours?.completedDuration >= required
+                      {currentUserHours?.status === 'attention'
+                        ? <>
+                          <Typography variant="body2">
+                            Mindestens ein Eintrag wurde abgelehnt und sollte geprüft werden
+                          </Typography>
+                        </>
+                        : currentUserHours?.completedDuration >= required
                         ? <>
                           <Typography variant="body2">
                             Alle erforderlichen Stunden sind erfüllt
@@ -358,6 +384,15 @@ export const WorkHoursTracker: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
+              {userAppointments.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4}>
+                    <Alert severity="info">
+                      Es sind noch keine Arbeitsstunden vorhanden. Neue Einträge werden hier sofort angezeigt und als ausstehend markiert, bis sie bestätigt wurden.
+                    </Alert>
+                  </TableCell>
+                </TableRow>
+              )}
               {userAppointments.sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
                 .map((appointment) => {
                   const up: WorkParticipant = appointment.participants.find((p) => p.userId === currentUser.id)!;
@@ -458,7 +493,7 @@ export const WorkHoursTracker: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {userWorkHours.map(({ user, completedDuration, upcomingDuration, appointments: {upcoming} }) => {
+              {userWorkHours.map(({ user, completedDuration, upcomingDuration, appointments: {upcoming}, status }) => {
                 const remaining = Math.max(
                   0,
                   required - completedDuration - upcomingDuration
@@ -491,13 +526,13 @@ export const WorkHoursTracker: React.FC = () => {
                       <TableCell align="right">{shortHumanizer(remaining)}</TableCell>
                       <TableCell>
                         <StatusChip overall={true} status={
-                          user.skipHours
+                          status === 'paused'
                            ? WORKSTATUS.PAUSED
-                           : completedDuration >= required
+                           : status === 'done'
                               ? WORKSTATUS.DONE
-                              : hasPending
+                              : status === 'attention' || hasPending
                                 ? WORKSTATUS.REJECTED // special case for "Prüfen!"
-                                : completedDuration + upcomingDuration >= required
+                                : status === 'planned'
                                   ? WORKSTATUS.PLANNED
                                   : WORKSTATUS.OPEN
                         } />

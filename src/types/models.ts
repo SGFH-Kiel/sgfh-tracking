@@ -13,6 +13,7 @@ export interface User {
   roles: UserRole[];
   feesPaid: boolean;
   skipHours?: boolean;
+  onboardingState?: 'not_started' | 'skipped' | 'completed';
   createdAt: Date;
   updatedAt: Date;
   emailVerified?: boolean;
@@ -58,6 +59,14 @@ export interface WorkParticipant {
   endTime?: Date;
 }
 
+export type ReservationStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export type ReservationVisibility = 'private' | 'public';
+
+export interface PublicReservationDetails {
+  freeSeatsText?: string;
+}
+
 export interface BoatReservation {
   id: string;
   boatId: string;
@@ -67,8 +76,28 @@ export interface BoatReservation {
   description?: string;
   startTime: Date;
   endTime: Date;
-  status: 'pending' | 'approved' | 'rejected';
+  status: ReservationStatus;
+  visibility: ReservationVisibility;
+  publicDetails?: PublicReservationDetails;
+  eligibilitySnapshot?: {
+    feesPaid: boolean;
+    skipHours: boolean;
+    workHoursMet: boolean;
+  };
   createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PublicBoatReservation {
+  id: string;
+  boatId: string;
+  boatName: string;
+  title: string;
+  startTime: Date;
+  endTime: Date;
+  visibility: ReservationVisibility;
+  reservationStatus: Exclude<ReservationStatus, 'draft' | 'rejected' | 'cancelled'>;
+  freeSeatsText?: string;
   updatedAt: Date;
 }
 

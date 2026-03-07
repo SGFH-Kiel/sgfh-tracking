@@ -14,6 +14,9 @@ import {
   Chip,
   ChipOwnProps,
   Typography,
+  FormControlLabel,
+  Switch,
+  Alert,
 } from '@mui/material';
 import { Save as SaveIcon } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
@@ -21,6 +24,8 @@ import dayjs, { Dayjs } from 'dayjs';
 import { useApp } from '../../contexts/AppContext';
 import { BoatReservation } from '../../types/models';
 import { useOverlappingReservations } from '../../hooks/useOverlappingReservations';
+import { syncPublicReservationFeed } from '../../domain/reservationSync';
+import { useMemberReservationEligibility } from '../../hooks/memberHooks';
 
 interface ReservationDialogProps {
   open: boolean;
@@ -36,7 +41,9 @@ interface FormData {
   description: string;
   startTime: Dayjs;
   endTime: Dayjs;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'draft' | 'pending' | 'approved';
+  visibility: 'private' | 'public';
+  freeSeatsText: string;
 }
 
 export const ReservationDialog: React.FC<ReservationDialogProps> = ({
@@ -47,8 +54,10 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
   onUpdate,
 }) => {
   const { database, currentUser, boats } = useApp();
+  const { canReserve } = useMemberReservationEligibility();
   const { enqueueSnackbar } = useSnackbar();
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     boatId: '',
     title: '',
@@ -56,26 +65,48 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
     startTime: dayjs(startTime),
     endTime: dayjs(endTime),
     status: 'pending',
+    visibility: 'private',
+    freeSeatsText: '',
   });
 
-  const { overlappingReservations, hasOverlappingReservations } = useOverlappingReservations({
+  const { overlappingReservations, warningReservations, hasOverlappingReservations } = useOverlappingReservations({
     startTime: formData.startTime,
     endTime: formData.endTime,
   });
 
   const handleSubmit = async () => {
-    const [hasOverlapping] = await hasOverlappingReservations(formData.boatId);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    const [hasOverlapping, , warningConflicts] = await hasOverlappingReservations(formData.boatId);
     if (hasOverlapping) {
       enqueueSnackbar('Dieses Boot ist in dem gewählten Zeitraum bereits reserviert.', { variant: 'error' });
+      setIsSubmitting(false);
       return;
     }
-    if (!currentUser) return;
+    if (!currentUser) {
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       const selectedBoat = boats.find(boat => boat.id === formData.boatId);
-      if (!selectedBoat) return;
+      if (!selectedBoat) {
+        setIsSubmitting(false);
+        return;
+      }
 
-      const reservation: Omit<BoatReservation, 'id' | 'createdAt' | 'updatedAt'> = {
+      const canCreateFinalReservation = canReserve;
+      const requestedStatus = canCreateFinalReservation ? formData.status : 'draft';
+      const finalStatus = requestedStatus === 'approved'
+        ? 'approved'
+        : requestedStatus === 'draft'
+          ? 'draft'
+          : (selectedBoat.requiresApproval && currentUser.id !== selectedBoat.bootswart)
+            ? 'pending'
+            : 'approved';
+
+      const now = new Date();
+      const reservation: Omit<BoatReservation, 'id'> = {
         boatId: formData.boatId,
         userId: currentUser.id,
         userName: currentUser.displayName,
@@ -83,14 +114,46 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
         description: formData.description,
         startTime: formData.startTime.toDate(),
         endTime: formData.endTime.toDate(),
-        status: (selectedBoat.requiresApproval && currentUser.id !== selectedBoat.bootswart) ? 'pending' : 'approved',
+        status: finalStatus,
+        visibility: formData.visibility,
+        publicDetails: formData.visibility === 'public'
+          ? { freeSeatsText: formData.freeSeatsText }
+          : undefined,
+        eligibilitySnapshot: {
+          feesPaid: currentUser.feesPaid,
+          skipHours: currentUser.skipHours === true,
+          workHoursMet: canCreateFinalReservation,
+        },
+        createdAt: now,
+        updatedAt: now,
       };
 
-      await database.addDocument('boatReservations', reservation);
+      const reservationId = await database.addDocument('boatReservations', reservation);
+      await syncPublicReservationFeed(database, {
+        ...reservation,
+        id: reservationId,
+      }, boats);
+
+      if (warningConflicts.length > 0) {
+        enqueueSnackbar('Es gibt bereits unverbindliche Vormerkungen in diesem Zeitraum. Ihre Reservierung wurde trotzdem gespeichert.', { variant: 'warning' });
+      } else {
+        enqueueSnackbar(
+          finalStatus === 'draft'
+            ? 'Vormerkung gespeichert. Sie blockiert nicht verbindlich und erscheint als Hinweis für andere.'
+            : finalStatus === 'pending'
+              ? 'Reservierung gespeichert und wartet auf Genehmigung.'
+              : 'Reservierung gespeichert und direkt freigegeben.',
+          { variant: 'success' }
+        );
+      }
+
       onUpdate();
       onClose();
     } catch (error) {
       console.error('Error creating reservation:', error);
+      enqueueSnackbar('Fehler beim Erstellen der Reservierung', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -103,6 +166,11 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
       </Box>
       <DialogContent>
         <Box sx={{ py: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {warningReservations.length > 0 && (
+            <Alert severity="warning">
+              Für den gewählten Zeitraum gibt es bereits unverbindliche Vormerkungen. Eine finale Reservierung ist möglich, sollte aber abgestimmt werden.
+            </Alert>
+          )}
           <Box sx={{ display: 'flex', gap: 2 }}>
             <DateTimePicker
               label="Startzeit"
@@ -138,6 +206,7 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
               {boats.map((boat) => {
                 const isBlocked = boat.blocked;
                 const isReserved = overlappingReservations.some(reservation => reservation.boatId === boat.id);
+                const hasDraftWarning = warningReservations.some(reservation => reservation.boatId === boat.id);
                 const chipProps: ChipOwnProps = {
                   sx: { ml: 1 },
                   variant: 'outlined',
@@ -145,9 +214,21 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
                 }
                 return (
                 <MenuItem key={boat.id} value={boat.id} disabled={isBlocked || isReserved}>
-                  {boat.name} {isBlocked ? <Chip label="blockiert" {...chipProps} /> : ''} {isReserved ? <Chip label="reserviert" {...chipProps} /> : ''}
+                  {boat.name} {isBlocked ? <Chip label="blockiert" {...chipProps} /> : ''} {isReserved ? <Chip label="reserviert" {...chipProps} /> : ''} {hasDraftWarning ? <Chip label="Vormerkung" sx={{ ml: 1 }} variant="outlined" color="warning" /> : ''}
                 </MenuItem>
               )})}
+            </Select>
+          </FormControl>
+
+          <FormControl fullWidth variant="outlined">
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={formData.status}
+              label="Status"
+              onChange={(e) => setFormData({ ...formData, status: e.target.value as FormData['status'] })}
+            >
+              <MenuItem value="pending">Finale Reservierung</MenuItem>
+              <MenuItem value="draft">Unverbindliche Vormerkung</MenuItem>
             </Select>
           </FormControl>
 
@@ -170,6 +251,27 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
             variant="outlined"
             placeholder="Optionale Beschreibung"
           />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={formData.visibility === 'public'}
+                onChange={(event) => setFormData({ ...formData, visibility: event.target.checked ? 'public' : 'private' })}
+              />
+            }
+            label="Öffentlich anzeigen, dass noch Plätze frei sind"
+          />
+
+          {formData.visibility === 'public' && (
+            <TextField
+              label="Hinweis für Mitfahrende"
+              value={formData.freeSeatsText}
+              onChange={(e) => setFormData({ ...formData, freeSeatsText: e.target.value })}
+              fullWidth
+              variant="outlined"
+              placeholder="z. B. 2 freie Plätze für Mitfahrende"
+            />
+          )}
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50' }}>
@@ -182,6 +284,7 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
             variant="contained"
             color="primary"
             startIcon={<SaveIcon />}
+            disabled={isSubmitting}
           >
             Reservieren
           </Button>

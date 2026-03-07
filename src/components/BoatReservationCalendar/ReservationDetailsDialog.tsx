@@ -8,6 +8,9 @@ import {
   Box,
   Chip,
   TextField,
+  Alert,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   Check as CheckIcon,
@@ -23,6 +26,8 @@ import { useApp } from '../../contexts/AppContext';
 import { BoatReservation, Boat } from '../../types/models';
 import { useOverlappingReservations } from '../../hooks/useOverlappingReservations';
 import { useSnackbar } from 'notistack';
+import { syncPublicReservationFeed, deletePublicReservationFeed } from '../../domain/reservationSync';
+import { useMemberReservationEligibility } from '../../hooks/memberHooks';
 
 dayjs.locale('de');
 
@@ -38,13 +43,8 @@ interface EditableReservation {
   description: string;
   startTime: dayjs.Dayjs;
   endTime: dayjs.Dayjs;
-}
-
-interface EditableReservation {
-  title: string;
-  description: string;
-  startTime: dayjs.Dayjs;
-  endTime: dayjs.Dayjs;
+  visibility: 'private' | 'public';
+  freeSeatsText: string;
 }
 
 export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> = ({
@@ -54,13 +54,17 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   onUpdate,
 }) => {
   const { database, currentUser, isAdmin } = useApp();
+  const { canReserve } = useMemberReservationEligibility();
   const [boat, setBoat] = useState<Boat | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editedData, setEditedData] = useState<EditableReservation>(() => ({
     title: reservation.title,
     description: reservation.description || '',
     startTime: dayjs(reservation.startTime),
     endTime: dayjs(reservation.endTime),
+    visibility: reservation.visibility,
+    freeSeatsText: reservation.publicDetails?.freeSeatsText || '',
   }));
 
   useEffect(() => {
@@ -69,6 +73,8 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
       description: reservation.description || '',
       startTime: dayjs(reservation.startTime),
       endTime: dayjs(reservation.endTime),
+      visibility: reservation.visibility,
+      freeSeatsText: reservation.publicDetails?.freeSeatsText || '',
     });
   }, [reservation]);
 
@@ -89,32 +95,49 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   }, [reservation.boatId, fetchBoat]);
 
   const handleCancel = async () => {
-    if (!currentUser) return;
+    if (!currentUser || isSubmitting) return;
 
+    setIsSubmitting(true);
     try {
-      await database.deleteDocument('boatReservations', reservation.id);
+      await database.updateDocument('boatReservations', reservation.id, {
+        status: 'cancelled',
+        updatedAt: new Date(),
+      });
+      await deletePublicReservationFeed(database, reservation.id);
       onUpdate();
       onClose();
     } catch (error) {
       console.error('Error canceling reservation:', error);
+      enqueueSnackbar('Fehler beim Stornieren der Reservierung', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const isOwner = currentUser?.id === reservation.userId;
   const isBootswartOrAdmin = (boat && currentUser && boat.bootswart === currentUser.id) || isAdmin;
 
-  const handleStatusChange = async (newStatus: 'approved' | 'rejected') => {
-    if (!isBootswartOrAdmin) return;
+  const handleStatusChange = async (newStatus: 'approved' | 'rejected' | 'cancelled') => {
+    if (!isBootswartOrAdmin || isSubmitting) return;
 
+    setIsSubmitting(true);
     try {
       await database.updateDocument('boatReservations', reservation.id, {
         status: newStatus,
         updatedAt: new Date(),
       });
+      await syncPublicReservationFeed(database, {
+        ...reservation,
+        status: newStatus,
+        updatedAt: new Date(),
+      }, boat ? [boat] : []);
       onUpdate();
       onClose();
     } catch (error) {
       console.error('Error updating reservation status:', error);
+      enqueueSnackbar('Fehler beim Aktualisieren des Status', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -127,41 +150,95 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   const { enqueueSnackbar } = useSnackbar();
 
   const handleSaveChanges = async () => {
+    if (isSubmitting) return;
+
+    // Check times
+    if (editedData.startTime.isAfter(editedData.endTime)) {
+      enqueueSnackbar('Die Endzeit muss später als die Startzeit sein.', { variant: 'error' });
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       // Check for overlapping reservations before saving
       const [hasOverlapping] = await hasOverlappingReservations(boat?.id);
       if (hasOverlapping) {
         enqueueSnackbar('Es gibt bereits eine Reservierung in diesem Zeitraum.', { variant: 'error' });
+        setIsSubmitting(false);
         return;
       }
 
-      // Check times
-      if (editedData.startTime.isAfter(editedData.endTime)) {
-        enqueueSnackbar('Die Endzeit muss später als die Startzeit sein.', { variant: 'error' });
-        return;
-      }
+      const resolvedPublicDetails = editedData.visibility === 'public'
+        ? { freeSeatsText: editedData.freeSeatsText }
+        : null;
 
       await database.updateDocument('boatReservations', reservation.id, {
         title: editedData.title,
         description: editedData.description,
         startTime: editedData.startTime.toDate(),
         endTime: editedData.endTime.toDate(),
+        visibility: editedData.visibility,
+        publicDetails: resolvedPublicDetails,
         updatedAt: new Date(),
       });
+      await syncPublicReservationFeed(database, {
+        ...reservation,
+        title: editedData.title,
+        description: editedData.description,
+        startTime: editedData.startTime.toDate(),
+        endTime: editedData.endTime.toDate(),
+        visibility: editedData.visibility,
+        publicDetails: resolvedPublicDetails,
+        updatedAt: new Date(),
+      }, boat ? [boat] : []);
       onUpdate();
       setIsEditing(false);
       enqueueSnackbar('Reservierung wurde aktualisiert', { variant: 'success' });
     } catch (error) {
       console.error('Error updating reservation:', error);
       enqueueSnackbar('Fehler beim Aktualisieren der Reservierung', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFinalizeDraft = async () => {
+    if (!canReserve) {
+      enqueueSnackbar('Die Vormerkung kann erst finalisiert werden, wenn die Voraussetzungen erfüllt sind.', { variant: 'warning' });
+      return;
+    }
+    if (isSubmitting) return;
+
+    const nextStatus = boat?.requiresApproval && currentUser?.id !== boat?.bootswart ? 'pending' : 'approved';
+
+    setIsSubmitting(true);
+    try {
+      await database.updateDocument('boatReservations', reservation.id, {
+        status: nextStatus,
+        updatedAt: new Date(),
+      });
+      await syncPublicReservationFeed(database, {
+        ...reservation,
+        status: nextStatus,
+        updatedAt: new Date(),
+      }, boat ? [boat] : []);
+      enqueueSnackbar('Vormerkung wurde finalisiert.', { variant: 'success' });
+      onUpdate();
+    } catch (error) {
+      console.error('Error finalizing reservation draft:', error);
+      enqueueSnackbar('Fehler beim Finalisieren der Vormerkung', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const getStatusChip = () => {
     const statusConfig = {
+      draft: { label: 'Vormerkung', color: 'warning' as const },
       pending: { label: 'Nicht genehmigt', color: 'info' as const },
       approved: { label: 'Genehmigt', color: 'success' as const },
       rejected: { label: 'Abgelehnt', color: 'error' as const },
+      cancelled: { label: 'Storniert', color: 'default' as const },
     } as const;
     const config = statusConfig[reservation.status as keyof typeof statusConfig];
     return (
@@ -218,6 +295,11 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
           p: 3, 
           borderRadius: 1,
         }}>
+          {reservation.status === 'draft' && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Diese Reservierung ist aktuell nur eine unverbindliche Vormerkung. Andere Mitglieder werden gewarnt, aber nicht hart blockiert.
+            </Alert>
+          )}
           {!isEditing ? (reservation.startTime.getDay() === reservation.endTime.getDay()) ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', mb: 2 }}>
               <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
@@ -271,14 +353,38 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
           )}
 
           {isEditing ? (
-            <TextField
-              fullWidth
-              multiline
-              rows={4}
-              value={editedData.description}
-              onChange={(e) => setEditedData({ ...editedData, description: e.target.value })}
-              sx={{ mb: 3 }}
-            />
+            <>
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                value={editedData.description}
+                onChange={(e) => setEditedData({ ...editedData, description: e.target.value })}
+                sx={{ mb: 3 }}
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={editedData.visibility === 'public'}
+                    onChange={(event) => setEditedData({
+                      ...editedData,
+                      visibility: event.target.checked ? 'public' : 'private',
+                    })}
+                  />
+                }
+                label="Öffentlich anzeigen, dass noch Plätze frei sind"
+                sx={{ mb: 2 }}
+              />
+              {editedData.visibility === 'public' && (
+                <TextField
+                  fullWidth
+                  label="Hinweis für Mitfahrende"
+                  value={editedData.freeSeatsText}
+                  onChange={(e) => setEditedData({ ...editedData, freeSeatsText: e.target.value })}
+                  sx={{ mb: 3 }}
+                />
+              )}
+            </>
           ) : (
             <Typography variant="body1" sx={{ mb: 3, whiteSpace: 'pre-line' }}>
               {reservation.description}
@@ -295,6 +401,11 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
             <Typography variant="subtitle2">
               <strong>Reserviert von:</strong> {reservation.userName}
             </Typography>
+            {reservation.visibility === 'public' && (
+              <Typography variant="subtitle2">
+                <strong>Öffentlich sichtbar:</strong> {reservation.publicDetails?.freeSeatsText || 'Mitfahrplätze verfügbar'}
+              </Typography>
+            )}
           </Box>
         </Box>
       </DialogContent>
@@ -302,11 +413,12 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50' }}>
         <Box sx={{ display: 'flex', gap: 2, width: '100%', justifyContent: 'space-between' }}>
           <Box>
-            {(isOwner || isBootswartOrAdmin) && (
+            {(isOwner || isBootswartOrAdmin) && !['cancelled', 'rejected'].includes(reservation.status) && (
               <Button
                 color="error"
                 variant="outlined"
                 onClick={handleCancel}
+                disabled={isSubmitting}
                 startIcon={<DeleteIcon />}
               >
                 Stornieren
@@ -315,7 +427,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
           </Box>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <Box sx={{ display: 'flex', gap: 2 }}>
-              {isOwner && !isEditing && (!boat?.requiresApproval || isBootswartOrAdmin) && (
+              {isOwner && !isEditing && reservation.status === 'draft' && (
                 <Button
                   color="primary"
                   variant="outlined"
@@ -330,6 +442,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
                   <Button
                     onClick={() => setIsEditing(false)}
                     variant="outlined"
+                    disabled={isSubmitting}
                     startIcon={<CloseIcon />}
                   >
                     Abbrechen
@@ -337,6 +450,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
                   <Button
                     onClick={handleSaveChanges}
                     variant="contained"
+                    disabled={isSubmitting}
                     startIcon={<SaveIcon />}
                   >
                     Speichern
@@ -355,6 +469,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
                   onClick={() => handleStatusChange('rejected')}
                   color="warning"
                   variant="outlined"
+                  disabled={isSubmitting}
                   startIcon={<CloseIcon />}
                 >
                   Ablehnen
@@ -363,11 +478,23 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
                   onClick={() => handleStatusChange('approved')}
                   color="success"
                   variant="contained"
+                  disabled={isSubmitting}
                   startIcon={<CheckIcon />}
                 >
                   Genehmigen
                 </Button>
               </Box>
+            )}
+            {!isEditing && isOwner && reservation.status === 'draft' && (
+              <Button
+                onClick={handleFinalizeDraft}
+                color="success"
+                variant="contained"
+                disabled={isSubmitting}
+                startIcon={<CheckIcon />}
+              >
+                Finalisieren
+              </Button>
             )}
           </Box>
         </Box>

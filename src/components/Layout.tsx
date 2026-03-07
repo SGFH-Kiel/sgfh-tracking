@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
@@ -16,6 +16,7 @@ import {
   Button,
   Breadcrumbs,
   Link as MuiLink,
+  Stack,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
@@ -32,13 +33,22 @@ import { MemberList } from './Members/MemberList';
 import { WorkHoursTracker } from './Members/WorkHoursTracker';
 import { SystemConfig } from './Admin/SystemConfig';
 import { Handyman } from '@mui/icons-material';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { UserGuide } from './Onboarding/UserGuide';
 
 export const Layout: React.FC = () => {
-  const { isAdmin, isSuperAdmin, signOut } = useApp();
+  const { isAdmin, isSuperAdmin, signOut, currentUser } = useApp();
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(Boolean(currentUser && (!currentUser.onboardingState || currentUser.onboardingState === 'not_started')));
   const { breadcrumbs } = usePageTitle();
   const currentPath = useLocation().pathname;
+
+  useEffect(() => {
+    if (currentUser && (!currentUser.onboardingState || currentUser.onboardingState === 'not_started')) {
+      setGuideOpen(true);
+    }
+  }, [currentUser]);
 
   const handleLogout = async () => {
     await signOut();
@@ -134,17 +144,31 @@ export const Layout: React.FC = () => {
               ))}
             </Breadcrumbs>
           </Box>
-          <Button 
-            color="inherit" 
-            onClick={handleLogout}
-            sx={{ 
-              color: 'white',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 0.1)'
-              }
-            }}>
-            Abmelden
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button
+              color="inherit"
+              onClick={() => setGuideOpen(true)}
+              startIcon={<HelpOutlineIcon />}
+              sx={{
+                color: 'white',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                }
+              }}>
+              Hilfe
+            </Button>
+            <Button 
+              color="inherit" 
+              onClick={handleLogout}
+              sx={{ 
+                color: 'white',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                }
+              }}>
+              Abmelden
+            </Button>
+          </Stack>
         </Toolbar>
       </AppBar>
 
@@ -226,6 +250,7 @@ export const Layout: React.FC = () => {
           </Routes>
         </Container>
       </Box>
+      <UserGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
     </Box>
   );
 };

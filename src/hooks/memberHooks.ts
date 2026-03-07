@@ -3,6 +3,7 @@ import humanizeDuration from 'humanize-duration';
 import { useApp } from '../contexts/AppContext';
 import { WorkAppointment, WorkParticipant } from '../types/models';
 import { User } from '../types/models';
+import { calculateWorkHoursForUsers, UserWorkHoursSnapshot, WorkHourEntry } from '../domain/workHours';
 
 const humanizer = humanizeDuration.humanizer({ language: 'de', round: true, units: ['h', 'm'], delimiter: ' und ' });
 
@@ -17,6 +18,13 @@ export interface UserWorkHours {
   completedDuration: number;
   upcomingDuration: number;
   declinedDuration: number;
+  completedMinutes: number;
+  upcomingMinutes: number;
+  declinedMinutes: number;
+  requiredMinutes: number;
+  remainingMinutes: number;
+  status: 'open' | 'planned' | 'done' | 'paused' | 'attention';
+  accountingEntries: WorkHourEntry[];
   appointments: {
     completed: WorkAppointment[];
     upcoming: WorkAppointment[];
@@ -24,13 +32,35 @@ export interface UserWorkHours {
   };
 }
 
-const createReducer = ( user: User) => (total: number, apt: WorkAppointment) => {
-  const up: WorkParticipant = apt.participants.find((p) => p.userId === user.id)!;
-  const startTime = up.startTime ? up.startTime : apt.startTime;
-  const endTime = up.endTime ? up.endTime : apt.endTime;
-  const duration = (endTime.getTime() - startTime.getTime())
-  return total + duration;
-}
+const mapSnapshotToUserWorkHours = (
+  snapshot: UserWorkHoursSnapshot,
+  appointments: WorkAppointment[],
+): UserWorkHours => {
+  const appointmentIds = {
+    completed: new Set(snapshot.completedEntries.map((entry) => entry.appointmentId)),
+    pending: new Set(snapshot.pendingEntries.map((entry) => entry.appointmentId)),
+    declined: new Set(snapshot.declinedEntries.map((entry) => entry.appointmentId)),
+  };
+
+  return {
+    user: snapshot.user,
+    completedDuration: snapshot.summary.completedMinutes * 60000,
+    upcomingDuration: snapshot.summary.pendingMinutes * 60000,
+    declinedDuration: snapshot.summary.declinedMinutes * 60000,
+    completedMinutes: snapshot.summary.completedMinutes,
+    upcomingMinutes: snapshot.summary.pendingMinutes,
+    declinedMinutes: snapshot.summary.declinedMinutes,
+    requiredMinutes: snapshot.summary.requiredMinutes,
+    remainingMinutes: snapshot.summary.remainingMinutes,
+    status: snapshot.summary.status,
+    accountingEntries: snapshot.entries,
+    appointments: {
+      completed: appointments.filter((appointment) => appointmentIds.completed.has(appointment.id)),
+      upcoming: appointments.filter((appointment) => appointmentIds.pending.has(appointment.id)),
+      declined: appointments.filter((appointment) => appointmentIds.declined.has(appointment.id)),
+    },
+  };
+};
 
 export const useCalculateWorkHours = (onlyAppointments?: WorkAppointment[], onlyUser?: User): { loading: boolean; error: string | null; userWorkHours: UserWorkHours[]; users: User[]; reload: () => void } => {
   const [loading, setLoading] = useState(true);
@@ -41,12 +71,8 @@ export const useCalculateWorkHours = (onlyAppointments?: WorkAppointment[], only
 
   const fetchData = useCallback(async (appointments?: WorkAppointment[], user?: User) => {
     try {
-      const currentYearChangeDate = systemConfig.yearChangeDate;
-      currentYearChangeDate.setFullYear(new Date().getFullYear());
-      // Use the last year's change date if current year's change date is in the future, otherwise use the current year's change date
-      const changeDate = currentYearChangeDate.getTime() > new Date().getTime()
-        ? currentYearChangeDate.setFullYear(currentYearChangeDate.getFullYear() - 1)
-        : currentYearChangeDate;
+      setLoading(true);
+      setError(null);
 
       // Fetch necessary users
       let users: User[] = [];
@@ -59,53 +85,11 @@ export const useCalculateWorkHours = (onlyAppointments?: WorkAppointment[], only
 
       // Fetch work appointments if not provided
       if (!appointments) {
-        appointments = await database.getDocuments<WorkAppointment>('workAppointments', [{
-          field: 'endTime',
-          operator: 'gte',
-          value: changeDate
-        }]);
-        // todo: filter for system config date and think about cutoff logic for work hour calculation
+        appointments = await database.getDocuments<WorkAppointment>('workAppointments');
       }
 
-      const now = new Date();
-      const userHours: UserWorkHours[] = users.map((user) => {
-        const userAppointments = appointments!.filter((apt) =>
-          apt.participants.some(
-            (p) => p.userId === user.id
-          )
-        );
-
-        const completed = userAppointments.filter(
-          (apt) => apt.endTime.getTime() < now.getTime() &&
-           apt.participants.find((p) => p.status === 'confirmed' && p.userId === user.id)
-        );
-        const upcoming = userAppointments.filter(
-          (apt) => apt.participants.find((p) => (p.status === 'pending' || (p.status === 'confirmed' && apt.endTime.getTime() > now.getTime())) && p.userId === user.id)
-        );
-        const declined = userAppointments.filter(
-          (apt) => apt.participants.find((p) => p.status === 'declined' && p.userId === user.id)
-        );
-
-        const reducer = createReducer(user);
-
-        const completedDuration = completed.reduce(reducer, 0);
-
-        const upcomingDuration = upcoming.reduce(reducer, 0);
-        
-        const declinedDuration = declined.reduce(reducer, 0);
-
-        return {
-          user,
-          completedDuration,
-          upcomingDuration,
-          declinedDuration,
-          appointments: {
-            completed,
-            upcoming,
-            declined,
-          },
-        };
-      });
+      const result = calculateWorkHoursForUsers(users, appointments, systemConfig, new Date());
+      const userHours: UserWorkHours[] = result.users.map((snapshot) => mapSnapshotToUserWorkHours(snapshot, appointments!));
 
       setUserWorkHours(userHours);
     } catch (err: any) {
@@ -116,7 +100,7 @@ export const useCalculateWorkHours = (onlyAppointments?: WorkAppointment[], only
     } finally {
       setLoading(false);
     }
-  }, [database, systemConfig.yearChangeDate]);
+  }, [database, systemConfig.yearChangeDate.getTime()]);
 
   useEffect(() => {
     fetchData(onlyAppointments, onlyUser);
@@ -130,7 +114,7 @@ export const useCalculateWorkHours = (onlyAppointments?: WorkAppointment[], only
 export const useMemberReservationEligibility = (): MemberEligibility => {
   const { currentUser, systemConfig } = useApp();
   const { loading, error, userWorkHours } = useCalculateWorkHours(undefined, currentUser || undefined);
-  const currentWorkDuration = userWorkHours?.find(workHours => workHours.user.id === currentUser?.id)?.completedDuration || 0;
+  const currentWorkMinutes = userWorkHours?.find(workHours => workHours.user.id === currentUser?.id)?.completedMinutes || 0;
     
   if (!currentUser) {
     return {
@@ -151,11 +135,11 @@ export const useMemberReservationEligibility = (): MemberEligibility => {
 
   // Only check work hours if skipHours is not enabled
   if (!currentUser.skipHours) {
-    const remainingDuration = (systemConfig.workHourThreshold * 3600000) - currentWorkDuration;
+    const remainingDuration = (systemConfig.workHourThreshold * 60) - currentWorkMinutes;
 
     if (remainingDuration > 0) {
       missingRequirements.push(
-        `Arbeitsstunden nicht erfüllt (${humanizer(remainingDuration)} )`
+        `Arbeitsstunden nicht erfüllt (${humanizer(remainingDuration * 60000)})`
       );
     }
   }

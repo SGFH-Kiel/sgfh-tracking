@@ -1,9 +1,5 @@
-import React from 'react';
-import { render, screen } from '@testing-library/react';
-import App from './App';
+import { calculateDurationMinutes } from './domain/workHours';
 
-test('renders learn react link', () => {
-  render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+test('berechnet Minuten robust', () => {
+  expect(calculateDurationMinutes(new Date('2025-01-01T10:00:00Z'), new Date('2025-01-01T11:30:00Z'))).toBe(90);
 });

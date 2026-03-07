@@ -89,6 +89,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         email: user.email!,
         displayName: displayName || user.displayName || userEmail.split('@')[0],
         roles: isAutoApproved ? [UserRole.MEMBER] : [UserRole.APPLICANT],
+        onboardingState: 'not_started',
         createdAt: new Date(),
         updatedAt: new Date(),
         emailVerified: user.emailVerified,
@@ -224,11 +225,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     const unsubscribe = getAuthProvider().onAuthStateChanged(async (authUser) => {
+      setLoading(true);
       if (!authUser) {
         currentUserRef.current = null;
         setCurrentUser(null);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      try {
+        await ensureUserDocument(authUser);
+      } catch (error) {
+        console.error('Error ensuring user document after auth state change:', error);
+      } finally {
+        setLoading(false);
+      }
     });
     return () => unsubscribe();
   }, []);
