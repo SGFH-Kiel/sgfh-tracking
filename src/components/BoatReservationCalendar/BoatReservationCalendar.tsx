@@ -4,6 +4,7 @@ import { useMemberReservationEligibility } from '../../hooks/memberHooks';
 import {
   Paper,
   Box,
+  Chip,
 } from '@mui/material';
 import { Calendar, dayjsLocalizer } from 'react-big-calendar';
 import dayjs from 'dayjs'
@@ -41,13 +42,13 @@ export const BoatReservationCalendar: React.FC = () => {
   }, [fetchData]);
 
   const handleSelectSlot = ({ start, end }: { start: Date; end: Date }) => {
-    if (!currentUser || !canReserve) return;
+    if (!currentUser) return;
     setSelectedSlot({ start, end });
     setIsReservationDialogOpen(true);
   };
 
   const handleSelectEvent = (reservation: BoatReservation) => {
-    if (!currentUser || !canReserve) return;
+    if (!currentUser) return;
     setSelectedReservation(reservation);
     setIsDetailsDialogOpen(true);
   };
@@ -68,8 +69,8 @@ export const BoatReservationCalendar: React.FC = () => {
     <Paper sx={{ p: { xs: 1, sm: 2 } }}>
       {!canReserve && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          <AlertTitle sx={{ mb: 2 }}>Reservierung nicht möglich</AlertTitle>
-          Folgende Bedingungen sind ausstehend:
+          <AlertTitle sx={{ mb: 2 }}>Finale Reservierung aktuell nicht möglich</AlertTitle>
+          Sie können trotzdem eine unverbindliche Vormerkung anlegen. Für eine finale Reservierung fehlen aktuell noch:
           <ul>
             {missingRequirements.map((req, index) => (
               <li key={index}>{req}</li>
@@ -127,16 +128,6 @@ export const BoatReservationCalendar: React.FC = () => {
       <Box
         sx={{
           position: 'relative',
-          '&::before': !canReserve ? {
-            content: '""',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 1,
-            cursor: 'not-allowed',
-          } : undefined,
         }}
       >
         <Calendar
@@ -146,19 +137,37 @@ export const BoatReservationCalendar: React.FC = () => {
           longPressThreshold={100}
           eventPropGetter={(event, ...props) => {
             const boat = boats.find(b => b.id === event.boatId);
+            const baseColor = event.status === 'draft'
+              ? '#ed6c02'
+              : event.status === 'pending'
+                ? '#0288d1'
+                : boat?.color || '#2e7d32';
             return {
               ...props,
-              style: boat?.color ? {
-                backgroundColor: boat.color,
-                borderColor: boat.color,
-                color: getContrastColor(boat.color),
-              } : undefined,
+              style: {
+                backgroundColor: baseColor,
+                borderColor: baseColor,
+                color: getContrastColor(baseColor),
+                opacity: event.status === 'cancelled' ? 0.5 : 1,
+                borderStyle: event.visibility === 'public' ? 'dashed' : 'solid',
+              },
             };
+          }}
+          components={{
+            event: ({ event }) => (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflow: 'hidden' }}>
+                <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {event.title}
+                </Box>
+                {event.visibility === 'public' && <Chip size="small" label="Öffentlich" color="secondary" sx={{ height: 18 }} />}
+                {event.status === 'draft' && <Chip size="small" label="Vormerkung" color="warning" sx={{ height: 18 }} />}
+              </Box>
+            )
           }}
           startAccessor="startTime"
           endAccessor="endTime"
           style={{ height: 'calc(100vh - 250px)', minHeight: 400 }}
-          selectable={canReserve}
+          selectable={Boolean(currentUser)}
           onSelectSlot={handleSelectSlot}
           onSelectEvent={handleSelectEvent}
           view={selectedView}

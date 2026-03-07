@@ -11,12 +11,14 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Alert,
 } from '@mui/material';
 import { Save as SaveIcon } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers';
 import dayjs, { Dayjs } from 'dayjs';
 import { WorkAppointment } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
+import { useSnackbar } from 'notistack';
 
 interface PrivateWorkHoursDialogProps {
   open: boolean;
@@ -38,6 +40,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
   onUpdate,
 }) => {
   const { database, currentUser, isAdmin, isAnyBootswart, boats } = useApp();
+  const { enqueueSnackbar } = useSnackbar();
   const [formData, setFormData] = useState<PrivateWorkHoursFormData>({
     title: '',
     description: '',
@@ -81,10 +84,17 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
         endTime: dayjs().add(2, 'hour'),
         boatId: '',
       });
+      enqueueSnackbar(
+        autoConfirm
+          ? 'Arbeitsstunden gespeichert und direkt angerechnet.'
+          : 'Arbeitsstunden gespeichert. Der Eintrag wartet jetzt auf Bestätigung.',
+        { variant: autoConfirm ? 'success' : 'info' }
+      );
       onUpdate();
       onClose();
     } catch (error) {
       console.error('Error creating private work hours:', error);
+      enqueueSnackbar('Fehler beim Speichern der Arbeitsstunden', { variant: 'error' });
     }
   };
 
@@ -97,6 +107,11 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
       </Box>
       <DialogContent>
         <Box sx={{ py: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Alert severity={isAdmin || (boats.find(b => b.id === formData.boatId)?.bootswart === currentUser?.id) ? 'success' : 'info'}>
+            {isAdmin || (boats.find(b => b.id === formData.boatId)?.bootswart === currentUser?.id)
+              ? 'Dieser Eintrag wird direkt bestätigt.'
+              : 'Dieser Eintrag wird gespeichert und im Bereich Arbeitsstunden als ausstehend angezeigt, bis er bestätigt wurde.'}
+          </Alert>
           <TextField
             label="Titel"
             value={formData.title}

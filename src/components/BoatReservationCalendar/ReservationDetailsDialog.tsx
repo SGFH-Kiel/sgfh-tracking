@@ -8,6 +8,9 @@ import {
   Box,
   Chip,
   TextField,
+  Alert,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   Check as CheckIcon,
@@ -23,6 +26,8 @@ import { useApp } from '../../contexts/AppContext';
 import { BoatReservation, Boat } from '../../types/models';
 import { useOverlappingReservations } from '../../hooks/useOverlappingReservations';
 import { useSnackbar } from 'notistack';
+import { syncPublicReservationFeed, deletePublicReservationFeed } from '../../domain/reservationSync';
+import { useMemberReservationEligibility } from '../../hooks/memberHooks';
 
 dayjs.locale('de');
 
@@ -38,13 +43,8 @@ interface EditableReservation {
   description: string;
   startTime: dayjs.Dayjs;
   endTime: dayjs.Dayjs;
-}
-
-interface EditableReservation {
-  title: string;
-  description: string;
-  startTime: dayjs.Dayjs;
-  endTime: dayjs.Dayjs;
+  visibility: 'private' | 'public';
+  freeSeatsText: string;
 }
 
 export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> = ({
@@ -54,6 +54,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   onUpdate,
 }) => {
   const { database, currentUser, isAdmin } = useApp();
+  const { canReserve } = useMemberReservationEligibility();
   const [boat, setBoat] = useState<Boat | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState<EditableReservation>(() => ({
@@ -61,6 +62,8 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
     description: reservation.description || '',
     startTime: dayjs(reservation.startTime),
     endTime: dayjs(reservation.endTime),
+    visibility: reservation.visibility,
+    freeSeatsText: reservation.publicDetails?.freeSeatsText || '',
   }));
 
   useEffect(() => {
@@ -69,6 +72,8 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
       description: reservation.description || '',
       startTime: dayjs(reservation.startTime),
       endTime: dayjs(reservation.endTime),
+      visibility: reservation.visibility,
+      freeSeatsText: reservation.publicDetails?.freeSeatsText || '',
     });
   }, [reservation]);
 
@@ -92,7 +97,11 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
     if (!currentUser) return;
 
     try {
-      await database.deleteDocument('boatReservations', reservation.id);
+      await database.updateDocument('boatReservations', reservation.id, {
+        status: 'cancelled',
+        updatedAt: new Date(),
+      });
+      await deletePublicReservationFeed(database, reservation.id);
       onUpdate();
       onClose();
     } catch (error) {
@@ -103,7 +112,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   const isOwner = currentUser?.id === reservation.userId;
   const isBootswartOrAdmin = (boat && currentUser && boat.bootswart === currentUser.id) || isAdmin;
 
-  const handleStatusChange = async (newStatus: 'approved' | 'rejected') => {
+  const handleStatusChange = async (newStatus: 'approved' | 'rejected' | 'cancelled') => {
     if (!isBootswartOrAdmin) return;
 
     try {
@@ -111,6 +120,11 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
         status: newStatus,
         updatedAt: new Date(),
       });
+      await syncPublicReservationFeed(database, {
+        ...reservation,
+        status: newStatus,
+        updatedAt: new Date(),
+      }, boat ? [boat] : []);
       onUpdate();
       onClose();
     } catch (error) {
@@ -146,8 +160,24 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
         description: editedData.description,
         startTime: editedData.startTime.toDate(),
         endTime: editedData.endTime.toDate(),
+        visibility: editedData.visibility,
+        publicDetails: editedData.visibility === 'public'
+          ? { freeSeatsText: editedData.freeSeatsText || 'Mitfahrplätze verfügbar' }
+          : undefined,
         updatedAt: new Date(),
       });
+      await syncPublicReservationFeed(database, {
+        ...reservation,
+        title: editedData.title,
+        description: editedData.description,
+        startTime: editedData.startTime.toDate(),
+        endTime: editedData.endTime.toDate(),
+        visibility: editedData.visibility,
+        publicDetails: editedData.visibility === 'public'
+          ? { freeSeatsText: editedData.freeSeatsText || 'Mitfahrplätze verfügbar' }
+          : undefined,
+        updatedAt: new Date(),
+      }, boat ? [boat] : []);
       onUpdate();
       setIsEditing(false);
       enqueueSnackbar('Reservierung wurde aktualisiert', { variant: 'success' });
@@ -157,11 +187,39 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
     }
   };
 
+  const handleFinalizeDraft = async () => {
+    if (!canReserve) {
+      enqueueSnackbar('Die Vormerkung kann erst finalisiert werden, wenn die Voraussetzungen erfüllt sind.', { variant: 'warning' });
+      return;
+    }
+
+    const nextStatus = boat?.requiresApproval && currentUser?.id !== boat?.bootswart ? 'pending' : 'approved';
+
+    try {
+      await database.updateDocument('boatReservations', reservation.id, {
+        status: nextStatus,
+        updatedAt: new Date(),
+      });
+      await syncPublicReservationFeed(database, {
+        ...reservation,
+        status: nextStatus,
+        updatedAt: new Date(),
+      }, boat ? [boat] : []);
+      enqueueSnackbar('Vormerkung wurde finalisiert.', { variant: 'success' });
+      onUpdate();
+    } catch (error) {
+      console.error('Error finalizing reservation draft:', error);
+      enqueueSnackbar('Fehler beim Finalisieren der Vormerkung', { variant: 'error' });
+    }
+  };
+
   const getStatusChip = () => {
     const statusConfig = {
+      draft: { label: 'Vormerkung', color: 'warning' as const },
       pending: { label: 'Nicht genehmigt', color: 'info' as const },
       approved: { label: 'Genehmigt', color: 'success' as const },
       rejected: { label: 'Abgelehnt', color: 'error' as const },
+      cancelled: { label: 'Storniert', color: 'default' as const },
     } as const;
     const config = statusConfig[reservation.status as keyof typeof statusConfig];
     return (
@@ -218,6 +276,11 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
           p: 3, 
           borderRadius: 1,
         }}>
+          {reservation.status === 'draft' && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Diese Reservierung ist aktuell nur eine unverbindliche Vormerkung. Andere Mitglieder werden gewarnt, aber nicht hart blockiert.
+            </Alert>
+          )}
           {!isEditing ? (reservation.startTime.getDay() === reservation.endTime.getDay()) ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', mb: 2 }}>
               <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
@@ -271,14 +334,38 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
           )}
 
           {isEditing ? (
-            <TextField
-              fullWidth
-              multiline
-              rows={4}
-              value={editedData.description}
-              onChange={(e) => setEditedData({ ...editedData, description: e.target.value })}
-              sx={{ mb: 3 }}
-            />
+            <>
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                value={editedData.description}
+                onChange={(e) => setEditedData({ ...editedData, description: e.target.value })}
+                sx={{ mb: 3 }}
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={editedData.visibility === 'public'}
+                    onChange={(event) => setEditedData({
+                      ...editedData,
+                      visibility: event.target.checked ? 'public' : 'private',
+                    })}
+                  />
+                }
+                label="Öffentlich anzeigen, dass noch Plätze frei sind"
+                sx={{ mb: 2 }}
+              />
+              {editedData.visibility === 'public' && (
+                <TextField
+                  fullWidth
+                  label="Hinweis für Mitfahrende"
+                  value={editedData.freeSeatsText}
+                  onChange={(e) => setEditedData({ ...editedData, freeSeatsText: e.target.value })}
+                  sx={{ mb: 3 }}
+                />
+              )}
+            </>
           ) : (
             <Typography variant="body1" sx={{ mb: 3, whiteSpace: 'pre-line' }}>
               {reservation.description}
@@ -295,6 +382,11 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
             <Typography variant="subtitle2">
               <strong>Reserviert von:</strong> {reservation.userName}
             </Typography>
+            {reservation.visibility === 'public' && (
+              <Typography variant="subtitle2">
+                <strong>Öffentlich sichtbar:</strong> {reservation.publicDetails?.freeSeatsText || 'Mitfahrplätze verfügbar'}
+              </Typography>
+            )}
           </Box>
         </Box>
       </DialogContent>
@@ -315,7 +407,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
           </Box>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <Box sx={{ display: 'flex', gap: 2 }}>
-              {isOwner && !isEditing && (!boat?.requiresApproval || isBootswartOrAdmin) && (
+              {isOwner && !isEditing && reservation.status === 'draft' && (
                 <Button
                   color="primary"
                   variant="outlined"
@@ -368,6 +460,16 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
                   Genehmigen
                 </Button>
               </Box>
+            )}
+            {!isEditing && isOwner && reservation.status === 'draft' && (
+              <Button
+                onClick={handleFinalizeDraft}
+                color="success"
+                variant="contained"
+                startIcon={<CheckIcon />}
+              >
+                Finalisieren
+              </Button>
             )}
           </Box>
         </Box>
