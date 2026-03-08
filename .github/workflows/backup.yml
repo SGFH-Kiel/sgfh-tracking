@@ -1,0 +1,59 @@
+name: Firestore Backup
+
+on:
+  schedule:
+    # Daily at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual backup'
+        required: false
+        default: 'Manual trigger'
+
+jobs:
+  backup:
+    name: Export Firestore → Backup Repo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sgfh-tracking
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Checkout backup repo
+        uses: actions/checkout@v4
+        with:
+          repository: SGFH-Kiel/sgfh-tracking-backups
+          token: ${{ secrets.BACKUP_REPO_PAT }}
+          path: backup
+
+      - name: Run backup script
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          BACKUP_DIR: ./backup
+        run: node scripts/backup-firestore.mjs
+
+      - name: Prune backups older than 60 days
+        run: |
+          find backup -maxdepth 1 -type d -name '????-??-??T*' | sort | head -n -60 | xargs -r rm -rf
+          echo "Remaining backups: $(find backup -maxdepth 1 -type d -name '????-??-??T*' | wc -l)"
+
+      - name: Commit and push backup
+        run: |
+          cd backup
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          REASON="${{ github.event.inputs.reason || 'Scheduled daily backup' }}"
+          git diff --staged --quiet || git commit -m "backup: ${TIMESTAMP} — ${REASON}"
+          git push
