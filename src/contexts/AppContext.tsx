@@ -64,6 +64,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const database = useRef(getDatabaseProvider());
   const navigate = useNavigate();
   const currentUserRef = useRef<User | null>(null);
+  const pendingDisplayNameRef = useRef<string | null>(null);
+  const isSigningUpRef = useRef(false);
 
   const ensureUserDocument = async (user: AuthUser, displayName?: string) => {  const userEmail = user.email;
     if (!userEmail) {
@@ -143,11 +145,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const signUp = async (email: string, password: string, displayName: string) => {
     try {
+      isSigningUpRef.current = true;
+      pendingDisplayNameRef.current = displayName;
       const authUser = await getAuthProvider().signUp(email, password);
       await ensureUserDocument(authUser, displayName);
     } catch (error) {
       console.error('Error signing up:', error);
       throw error;
+    } finally {
+      isSigningUpRef.current = false;
+      pendingDisplayNameRef.current = null;
     }
   };
 
@@ -233,8 +240,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
 
+      if (isSigningUpRef.current) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        await ensureUserDocument(authUser);
+        await ensureUserDocument(authUser, pendingDisplayNameRef.current ?? undefined);
       } catch (error) {
         console.error('Error ensuring user document after auth state change:', error);
       } finally {
