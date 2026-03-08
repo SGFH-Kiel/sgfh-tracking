@@ -4,5 +4,17 @@
     "location": "eur3",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 9099
+    },
+    "auth": {
+      "port": 9098
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4000
+    }
   }
 }

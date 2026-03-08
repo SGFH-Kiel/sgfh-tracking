@@ -1,4 +1,4 @@
-import { BoatReservation, PublicBoatReservation, ReservationStatus, ReservationVisibility } from '../types/models';
+import { BoatReservation, PublicBoatReservation, ReservationStatus } from '../types/models';
 
 export interface ReservationConflictResult {
   hardConflicts: BoatReservation[];

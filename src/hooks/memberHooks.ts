@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import humanizeDuration from 'humanize-duration';
 import { useApp } from '../contexts/AppContext';
-import { WorkAppointment, WorkParticipant } from '../types/models';
+import { WorkAppointment } from '../types/models';
 import { User } from '../types/models';
 import { calculateWorkHoursForUsers, UserWorkHoursSnapshot, WorkHourEntry } from '../domain/workHours';
 
@@ -100,6 +100,7 @@ export const useCalculateWorkHours = (onlyAppointments?: WorkAppointment[], only
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [database, systemConfig.yearChangeDate.getTime()]);
 
   useEffect(() => {

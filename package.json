@@ -40,6 +40,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "test:rules": "firebase emulators:exec --only firestore 'jest --config jest.rules.config.js'",
+    "dev:local": "bash scripts/dev-local.sh",
+    "seed": "node scripts/seed-emulator.mjs",
     "eject": "react-scripts eject",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build"
@@ -63,9 +66,13 @@
     ]
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^3.0.3",
+    "@firebase/rules-unit-testing": "^4.0.0",
     "@types/humanize-duration": "^3.27.4",
     "@types/lodash": "^4.17.16",
-    "gh-pages": "^6.3.0"
+    "concurrently": "^9.2.1",
+    "env-cmd": "^11.0.0",
+    "gh-pages": "^6.3.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6"
   }
 }

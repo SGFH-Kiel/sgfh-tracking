@@ -107,7 +107,11 @@ export const WorkCalendar: React.FC = () => {
           open={createDialogOpen}
           onClose={() => setCreateDialogOpen(false)}
           onSave={async (appointment) => {
-            await database.addDocument('workAppointments', appointment);
+            await database.addDocument('workAppointments', {
+              ...appointment,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
             setCreateDialogOpen(false);
             await refreshAppointments();
           }}

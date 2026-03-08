@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,7 @@ interface PrivateWorkHoursDialogProps {
   open: boolean;
   onClose: () => void;
   onUpdate: () => void;
+  appointment?: WorkAppointment;
 }
 
 interface PrivateWorkHoursFormData {
@@ -38,6 +39,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
   open,
   onClose,
   onUpdate,
+  appointment: editAppointment,
 }) => {
   const { database, currentUser, isAdmin, isAnyBootswart, boats } = useApp();
   const { enqueueSnackbar } = useSnackbar();
@@ -50,6 +52,30 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
     boatId: '',
   });
 
+  useEffect(() => {
+    if (open) {
+      if (editAppointment) {
+        const participant = editAppointment.participants.find(p => p.userId === currentUser?.id);
+        setFormData({
+          title: editAppointment.title,
+          description: editAppointment.description,
+          startTime: dayjs(participant?.startTime ?? editAppointment.startTime),
+          endTime: dayjs(participant?.endTime ?? editAppointment.endTime),
+          boatId: editAppointment.boatId || '',
+        });
+      } else {
+        setFormData({
+          title: '',
+          description: '',
+          startTime: dayjs(),
+          endTime: dayjs().add(2, 'hour'),
+          boatId: '',
+        });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   const handleSubmit = async () => {
     if (!currentUser || isSubmitting) return;
     setIsSubmitting(true);
@@ -58,44 +84,58 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
     const autoConfirm = isAdmin || (boat && isAnyBootswart && boat.bootswart === currentUser.id);
 
     try {
-      const appointment: Omit<WorkAppointment, 'id' | 'createdAt' | 'updatedAt'> = {
-        title: formData.title || `Private Arbeitsstunden für ${currentUser.displayName}`,
-        description: formData.description,
-        startTime: formData.startTime.toDate(),
-        endTime: formData.endTime.toDate(),
-        maxParticipants: 1,
-        boatId: formData.boatId || '',
-        participants: [{
-          userId: currentUser.id,
-          userName: currentUser.displayName,
-          status: autoConfirm ? 'confirmed' : 'pending',
+      if (editAppointment) {
+        const updatedParticipants = editAppointment.participants.map(p =>
+          p.userId === currentUser.id
+            ? { ...p, startTime: formData.startTime.toDate(), endTime: formData.endTime.toDate(), updatedAt: new Date() }
+            : p
+        );
+        await database.updateDocument<WorkAppointment>('workAppointments', editAppointment.id, {
+          title: formData.title || editAppointment.title,
+          description: formData.description,
           startTime: formData.startTime.toDate(),
           endTime: formData.endTime.toDate(),
+          boatId: formData.boatId || '',
+          participants: updatedParticipants,
+          updatedAt: new Date(),
+        });
+        enqueueSnackbar('Arbeitsstunden aktualisiert.', { variant: 'success' });
+      } else {
+        const newAppointment: Omit<WorkAppointment, 'id'> = {
+          title: formData.title || `Private Arbeitsstunden für ${currentUser.displayName}`,
+          description: formData.description,
+          startTime: formData.startTime.toDate(),
+          endTime: formData.endTime.toDate(),
+          maxParticipants: 1,
+          boatId: formData.boatId || '',
+          participants: [{
+            userId: currentUser.id,
+            userName: currentUser.displayName,
+            status: autoConfirm ? 'confirmed' : 'pending',
+            startTime: formData.startTime.toDate(),
+            endTime: formData.endTime.toDate(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }],
+          supplies: [],
+          private: true,
+          createdByUserId: currentUser.id,
+          createdByUserName: currentUser.displayName,
           createdAt: new Date(),
           updatedAt: new Date(),
-        }],
-        supplies: [],
-        private: true,
-      };
-
-      await database.addDocument('workAppointments', appointment);
-      setFormData({
-        title: '',
-        description: '',
-        startTime: dayjs(),
-        endTime: dayjs().add(2, 'hour'),
-        boatId: '',
-      });
-      enqueueSnackbar(
-        autoConfirm
-          ? 'Arbeitsstunden gespeichert und direkt angerechnet.'
-          : 'Arbeitsstunden gespeichert. Der Eintrag wartet jetzt auf Bestätigung.',
-        { variant: autoConfirm ? 'success' : 'info' }
-      );
+        };
+        await database.addDocument('workAppointments', newAppointment);
+        enqueueSnackbar(
+          autoConfirm
+            ? 'Arbeitsstunden gespeichert und direkt angerechnet.'
+            : 'Arbeitsstunden gespeichert. Der Eintrag wartet jetzt auf Bestätigung.',
+          { variant: autoConfirm ? 'success' : 'info' }
+        );
+      }
       onUpdate();
       onClose();
     } catch (error) {
-      console.error('Error creating private work hours:', error);
+      console.error('Error saving private work hours:', error);
       enqueueSnackbar('Fehler beim Speichern der Arbeitsstunden', { variant: 'error' });
     } finally {
       setIsSubmitting(false);
@@ -106,7 +146,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <Box sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', py: 3, px: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }} color="primary.contrastText">
-          Private Arbeitsstunden
+          {editAppointment ? 'Arbeitsstunden bearbeiten' : 'Private Arbeitsstunden'}
         </Typography>
       </Box>
       <DialogContent>
@@ -188,7 +228,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
             startIcon={<SaveIcon />}
             disabled={isSubmitting}
           >
-            Speichern
+            {editAppointment ? 'Aktualisieren' : 'Speichern'}
           </Button>
         </Box>
       </DialogActions>

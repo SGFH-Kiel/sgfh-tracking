@@ -28,6 +28,7 @@ import {
   Close as CloseIcon,
   Upload as UploadIcon,
   Download as DownloadIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 import { useApp } from '../../contexts/AppContext';
 import { usePageTitle } from '../../contexts/PageTitleContext';
@@ -35,6 +36,7 @@ import { useCalculateWorkHours, UserWorkHours } from '../../hooks/memberHooks';
 import humanizeDuration from 'humanize-duration';
 import { WorkAppointment, WorkParticipant } from '../../types/models';
 import { PrivateWorkHoursDialog } from './PrivateWorkHoursDialog';
+import { AppointmentDetailsDialog } from '../WorkCalendar/AppointmentDetailsDialog';
 import { ImportWorkHoursDialog } from './ImportWorkHoursDialog';
 import { utils, writeFile } from 'xlsx';
 
@@ -89,6 +91,8 @@ const StatusChip = ({ status, overall, sx }: { status: WORKSTATUS; overall: bool
 export const WorkHoursTracker: React.FC = () => {
   const { isAdmin, isAnyBootswart, currentUser, systemConfig, database, boats } = useApp();
   const [privateHoursDialogOpen, setPrivateHoursDialogOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<WorkAppointment | undefined>(undefined);
+  const [detailAppointment, setDetailAppointment] = useState<WorkAppointment | undefined>(undefined);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const { userWorkHours, loading, error, reload: refreshAppointments } = useCalculateWorkHours();
@@ -181,6 +185,7 @@ export const WorkHoursTracker: React.FC = () => {
   }, [userWorkHours, boats]);
 
   const handlePrivateHoursDialog = useCallback(() => {
+    setEditingAppointment(undefined);
     setPrivateHoursDialogOpen(true);
   }, [setPrivateHoursDialogOpen]);
 
@@ -381,6 +386,7 @@ export const WorkHoursTracker: React.FC = () => {
                 <TableCell>Uhrzeit</TableCell>
                 <TableCell>Dauer</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
@@ -404,8 +410,17 @@ export const WorkHoursTracker: React.FC = () => {
                   const duration = (end.getTime() - start.getTime());
                   const isInPast = (end.getTime() < new Date().getTime());
 
+                  const isPrivateOwn = !!appointment.private && appointment.createdByUserId === currentUser.id;
+                  const isLockedPrivate = isPrivateOwn && up.status === 'confirmed';
+                  const canEditRow = isPrivateOwn && !isLockedPrivate;
+
                   return (
-                    <TableRow key={`${appointment.id}-${currentUser.id}-${up.status}`}>
+                    <TableRow
+                      key={`${appointment.id}-${currentUser.id}-${up.status}`}
+                      hover
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => setDetailAppointment(appointment)}
+                    >
                       <TableCell>
                         {startDate}
                         {startDate !== endDate && " - "}
@@ -427,6 +442,21 @@ export const WorkHoursTracker: React.FC = () => {
                                 ? WORKSTATUS.REJECTED
                                 : WORKSTATUS.PLANNED
                         } />
+                      </TableCell>
+                      <TableCell sx={{ py: 0.5 }} onClick={(e) => e.stopPropagation()}>
+                        {canEditRow && (
+                          <Tooltip title="Bearbeiten">
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setEditingAppointment(appointment);
+                                setPrivateHoursDialogOpen(true);
+                              }}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -576,7 +606,12 @@ export const WorkHoursTracker: React.FC = () => {
                                       const isBootswart = boats.find(b => b.id === appointment.boatId)?.bootswart === currentUser?.id;
 
                                       return (
-                                        <TableRow key={`${user.id}-${appointment.id}`}>
+                                        <TableRow
+                                          key={`${user.id}-${appointment.id}`}
+                                          hover
+                                          sx={{ cursor: 'pointer' }}
+                                          onClick={() => setDetailAppointment(appointment)}
+                                        >
                                           <TableCell>
                                             {startDate}
                                             {startDate !== endDate && " - "}
@@ -600,7 +635,7 @@ export const WorkHoursTracker: React.FC = () => {
                                                     : WORKSTATUS.PLANNED} />
                                           </TableCell>
                                           {(isAdmin || isBootswart) && (
-                                            <TableCell>
+                                            <TableCell onClick={(e) => e.stopPropagation()}>
                                               {up.status !== 'confirmed' && (
                                                 <Box sx={{ display: 'flex', gap: 1 }}>
                                                   <Tooltip title="Bestätigen">
@@ -643,10 +678,27 @@ export const WorkHoursTracker: React.FC = () => {
         </TableContainer>
         </Paper>
       )}
+      {detailAppointment && (
+        <AppointmentDetailsDialog
+          open={!!detailAppointment}
+          onClose={() => setDetailAppointment(undefined)}
+          appointment={detailAppointment}
+          onUpdate={async () => { await refreshAppointments(); }}
+          onDelete={async () => {
+            await database.deleteDocument('workAppointments', detailAppointment.id);
+            setDetailAppointment(undefined);
+            await refreshAppointments();
+          }}
+        />
+      )}
       <PrivateWorkHoursDialog
         open={privateHoursDialogOpen}
-        onClose={() => setPrivateHoursDialogOpen(false)}
+        onClose={() => {
+          setPrivateHoursDialogOpen(false);
+          setEditingAppointment(undefined);
+        }}
         onUpdate={refreshAppointments}
+        appointment={editingAppointment}
       />
       <ImportWorkHoursDialog
         open={importDialogOpen}

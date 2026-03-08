@@ -1,26 +1,44 @@
-# Time Tracking and Member Management Application
+# SGFH Tracking — Mitgliederverwaltung & Arbeitsstunden
 
-A modern time tracking application built with React, TypeScript, and Firebase.
+Mitgliederverwaltung, Arbeitsstunden-Tracking und Bootsreservierungen für die Segelgruppe, gebaut mit React, TypeScript und Firebase.
 
 ## Features
 
-- Track working hours with start/stop functionality
-- Manage members and their roles
-- Reserve boats for members
-- Add descriptions and project tags to time entries
-- View history of time entries
-- User authentication
-- Responsive design
+- Arbeitsstunden erfassen und bestätigen
+- Bootsreservierungen verwalten (Entwurf → Genehmigung → Bestätigung)
+- Mitglieder und Rollen verwalten
+- Öffentlicher Reservierungsfeed
+- Benutzerauthentifizierung
+- Responsives Design
 
-## Setup
+## Lokale Entwicklung (empfohlen)
 
-1. Clone the repository
-2. Install dependencies:
+Für lokales Testen gegen Firebase-Emulatoren — ohne Zugriff auf Produktionsdaten:
+
+**Voraussetzung:** Firebase CLI installiert (`npm install -g firebase-tools`)
+
+```bash
+npm install
+npm run dev:local
+```
+
+Das war's. Der Befehl startet automatisch:
+- Firebase-Emulatoren (Firestore + Auth)
+- Seed mit Testdaten und Testnutzern
+- React-App unter http://localhost:3000
+
+Emulator-UI (Firestore & Auth einsehen): **http://localhost:4000**
+
+Weitere Details: [`docs/lokale-entwicklung.md`](docs/lokale-entwicklung.md)
+
+## Setup gegen Produktion
+
+1. Repository klonen und Abhängigkeiten installieren:
    ```bash
    npm install
    ```
-3. Create a Firebase project and enable Authentication and Firestore
-4. Create a `.env` file in the root directory with your Firebase configuration:
+2. Firebase-Projekt anlegen mit aktivierter Authentication und Firestore
+3. `.env`-Datei im Projektverzeichnis anlegen:
    ```
    REACT_APP_FIREBASE_API_KEY=your_api_key
    REACT_APP_FIREBASE_AUTH_DOMAIN=your_auth_domain
@@ -29,26 +47,46 @@ A modern time tracking application built with React, TypeScript, and Firebase.
    REACT_APP_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
    REACT_APP_FIREBASE_APP_ID=your_app_id
    ```
-5. Start the development server:
+4. Entwicklungsserver starten:
    ```bash
    npm start
    ```
 
+## Tests
+
+```bash
+# Domain-Unit-Tests
+npm test -- --watchAll=false --testPathPattern=domain
+
+# Firestore-Sicherheitsregeln (startet Emulator automatisch)
+npm run test:rules
+```
+
+Weitere Details: [`docs/tests.md`](docs/tests.md)
+
 ## Deployment
 
-1. Update the `homepage` field in `package.json` with your GitHub Pages URL
-2. Build the project:
-   ```bash
-   npm run build
-   ```
-3. Deploy to GitHub Pages:
-   ```bash
-   npm run deploy
-   ```
+```bash
+npm run deploy
+```
 
-## Technologies Used
+Deployed via GitHub Pages. Der `predeploy`-Hook führt `npm run build` automatisch aus.
 
-- React with TypeScript
+## Technologien
+
+- React + TypeScript
 - Firebase (Authentication & Firestore)
 - Material-UI
-- date-fns
+- Firebase Emulator Suite (lokale Entwicklung)
+
+## Dokumentation
+
+| Dokument | Inhalt |
+|---|---|
+| [`docs/lokale-entwicklung.md`](docs/lokale-entwicklung.md) | Lokales Setup mit Emulator, Testdaten, Accounts |
+| [`docs/tests.md`](docs/tests.md) | Testbereiche und Ausführung |
+| [`docs/architektur.md`](docs/architektur.md) | Komponentenstruktur und Architekturentscheidungen |
+| [`docs/datenmodell-firestore.md`](docs/datenmodell-firestore.md) | Firestore-Collections und Datenstrukturen |
+| [`docs/sicherheit-firestore-regeln.md`](docs/sicherheit-firestore-regeln.md) | Sicherheitsregeln und Zugriffsmodell |
+| [`docs/reservierungen.md`](docs/reservierungen.md) | Reservierungsstatusmodell und -logik |
+| [`docs/arbeitsstunden-logik.md`](docs/arbeitsstunden-logik.md) | Arbeitsstundenberechnung und Jahreswechsel |

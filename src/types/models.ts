@@ -43,6 +43,8 @@ export interface WorkAppointment {
   participants: WorkParticipant[];
   supplies: Supply[];
   private?: boolean;
+  createdByUserId?: string;
+  createdByUserName?: string;
   createdAt: Date;
   updatedAt: Date;
 }

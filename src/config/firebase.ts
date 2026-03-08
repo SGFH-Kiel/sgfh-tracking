@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, browserSessionPersistence, setPersistence } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
+import { getAuth, browserSessionPersistence, setPersistence, connectAuthEmulator } from 'firebase/auth';
+import { initializeFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 
 if (!process.env.REACT_APP_FIREBASE_API_KEY || !process.env.REACT_APP_FIREBASE_PROJECT_ID) {
   throw new Error('Firebase configuration is missing. Please check your .env file.');
@@ -35,3 +35,10 @@ export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
   cacheSizeBytes: 1048576 // 1 MB
 });
+
+// Connect to local emulators when REACT_APP_USE_EMULATOR=true
+if (process.env.REACT_APP_USE_EMULATOR === 'true') {
+  connectFirestoreEmulator(db, 'localhost', 9099);
+  connectAuthEmulator(auth, 'http://localhost:9098', { disableWarnings: true });
+  console.info('[Emulator] Connected to local Firestore (9099) and Auth (9098) emulators.');
+}

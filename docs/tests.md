@@ -1,6 +1,6 @@
 # Tests
 
-## Vorhandene Testbereiche
+## Testbereiche
 
 - `src/domain/__tests__/workHours.test.ts`
   - Dauerberechnung
@@ -16,7 +16,28 @@
   - Mitgliedszugriff
   - Besitzschutz
   - öffentliche Feed-Rechte
+  - Direktgenehmigung durch Bootswart
+  - Regression: Besitzer kann `status=approved` nicht direkt setzen wenn Boot `requiresApproval` hat
 
-## Hinweise
+## Tests ausführen
 
-Da in diesem Arbeitsmodus keine Abhängigkeiten installiert oder Tests ausgeführt werden sollten, wurden die Testdateien vorbereitet, aber nicht lokal ausgeführt.
+### Domain-Unit-Tests (kein Emulator erforderlich)
+
+```bash
+npm test -- --watchAll=false --testPathPattern=domain
+```
+
+### Firestore-Sicherheitsregeln-Tests (Emulator erforderlich)
+
+```bash
+npm run test:rules
+```
+
+Der Befehl startet den Firestore-Emulator automatisch auf Port 9099, führt alle 13 Regeltests aus und beendet den Emulator danach.
+
+**Voraussetzung:** Firebase CLI muss installiert sein (`npm install -g firebase-tools`).
+
+## Technische Details
+
+- Regeltests laufen mit `jest` direkt (Node-Umgebung) über `jest.rules.config.js`, **nicht** über `react-scripts`, da `react-scripts` jsdom erzwingt und damit gRPC/`setImmediate` bricht.
+- Die `console.warn`-Ausgaben mit `PERMISSION_DENIED` während der Regeltests sind erwartet — sie stammen aus den `assertFails`-Tests.

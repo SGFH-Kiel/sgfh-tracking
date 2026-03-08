@@ -87,6 +87,8 @@ export const AppointmentDialog: React.FC<AppointmentDialogProps> = ({
       boatId: formData.boatId || '',
       supplies: formData.supplies,
       participants: [],
+      createdByUserId: currentUser?.id,
+      createdByUserName: currentUser?.displayName,
     };
     if (formData.maxParticipants) {
       appointmentData.maxParticipants = formData.maxParticipants;

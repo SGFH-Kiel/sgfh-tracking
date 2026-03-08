@@ -2,6 +2,7 @@ import { initializeTestEnvironment, RulesTestEnvironment, assertFails, assertSuc
 import { readFileSync } from 'fs';
 import { doc, setDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
+jest.setTimeout(30000);
 describe('firestore rules', () => {
   let testEnv: RulesTestEnvironment;
 

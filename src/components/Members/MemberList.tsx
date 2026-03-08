@@ -288,7 +288,7 @@ export const MemberList: React.FC = () => {
                       ? (
                         <Chip label="Deaktiviert" sx={{ margin: 1 }} color="error" />
                       ) : member.roles.map((role) => (
-                        <Chip label={getRoleLabel(role)} sx={{ margin: 1 }} variant="outlined" color={getRoleColor(role)} />
+                        <Chip key={role} label={getRoleLabel(role)} sx={{ margin: 1 }} variant="outlined" color={getRoleColor(role)} />
                       ))
                   }
                   {isAnyBootswart && (

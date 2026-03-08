@@ -170,7 +170,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
 
       const resolvedPublicDetails = editedData.visibility === 'public'
         ? { freeSeatsText: editedData.freeSeatsText }
-        : null;
+        : undefined;
 
       await database.updateDocument('boatReservations', reservation.id, {
         title: editedData.title,
@@ -178,7 +178,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
         startTime: editedData.startTime.toDate(),
         endTime: editedData.endTime.toDate(),
         visibility: editedData.visibility,
-        publicDetails: resolvedPublicDetails,
+        publicDetails: resolvedPublicDetails ?? null,
         updatedAt: new Date(),
       });
       await syncPublicReservationFeed(database, {
@@ -287,6 +287,9 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
             {boat.name}
           </Typography>
         )}
+        <Typography variant="body2" sx={{ opacity: 0.75, mt: 0.5 }} color="primary.contrastText">
+          Erstellt von {reservation.userName} · {dayjs(reservation.createdAt).format('DD.MM.YYYY')}
+        </Typography>
       </Box>
 
       <DialogContent sx={{ p: 0 }}>

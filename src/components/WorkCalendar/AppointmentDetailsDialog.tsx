@@ -46,7 +46,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   onDelete,
   onUpdate,
 }) => {
-  const { isAdmin, isAnyBootswart, database, boats, currentUser } = useApp();
+  const { isAdmin, isSuperAdmin, database, boats, currentUser } = useApp();
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState<Partial<WorkAppointment>>(appointment);
@@ -54,9 +54,17 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   useEffect(() => {
     if (open) {
       setEditedData(appointment);
-      setIsEditing(false); // Reset editing state when dialog opens
+      setIsEditing(false);
     }
-  }, [open, appointment, appointment.id]); // Only reset when dialog opens or appointment ID changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]); // intentionally excludes `appointment` — reset only on dialog open, not on every prop update
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditedData(appointment);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointment]); // intentionally excludes `isEditing` — read as snapshot, adding it would cause stale closure loops
 
   const handleStartTimeChange = useCallback((newValue: Dayjs | null) => {
     if (newValue) {
@@ -76,7 +84,14 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
     }
   }, []);
 
-  const canEdit = isAdmin || (isAnyBootswart && boats.find(b => b.id === appointment.boatId)?.bootswart === currentUser?.id);
+  const isAppointmentBootswart = !!appointment.boatId && boats.find(b => b.id === appointment.boatId)?.bootswart === currentUser?.id;
+  const isCreator = !!currentUser && appointment.createdByUserId === currentUser.id;
+  const isPast = appointment.endTime < new Date();
+  const hasConfirmedParticipants = appointment.participants.some(p => p.status === 'confirmed');
+  const isLockedForNonSuperAdmin = isPast && hasConfirmedParticipants;
+  // Private appointments created by the current user are editable as long as no participant is confirmed yet
+  const canEditOwnPrivate = !!appointment.private && isCreator && !hasConfirmedParticipants;
+  const canEdit = isSuperAdmin || canEditOwnPrivate || (!isLockedForNonSuperAdmin && (isAppointmentBootswart || isCreator));
   const isMyPrivateAppointment = appointment.private && appointment.participants.some(p => p.userId === currentUser?.id);
 
   const isParticipant = appointment.participants.some(
@@ -197,6 +212,11 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
           ) : (
             <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }} color="primary.contrastText">
               {appointment.title} {appointment.private ? '(privat)' : ''}
+          {appointment.createdByUserName && (
+            <Typography variant="caption" sx={{ opacity: 0.75, fontWeight: 'normal', display: 'block', mt: 0.5 }} color="primary.contrastText">
+              Erstellt von {appointment.createdByUserName}
+            </Typography>
+          )}
             </Typography>
           )}
           <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 'normal' }} color="primary.contrastText">
@@ -335,6 +355,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                   sx={{ py: 1 }}
                 >
                   <ListItemText
+                    secondaryTypographyProps={{ component: 'div' }}
                     primary={
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
@@ -513,7 +534,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                   >
                     Teilnehmen
                   </Button>
-                ) : (
+                ) : appointment.participants.find(p => p.userId === currentUser?.id)?.status !== 'confirmed' ? (
                   <Button
                     variant="outlined"
                     onClick={handleLeave}
@@ -522,7 +543,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                   >
                     Nicht teilnehmen
                   </Button>
-                )}
+                ) : null}
               </>
             )}
           </Box>
