@@ -10,7 +10,7 @@
 ## Wesentliche Regeln
 
 - `users`
-  - Benutzer dürfen nur eigene Basisfelder ändern (`displayName`, `lastLoginAt`, `onboardingState`, `updatedAt`)
+  - Benutzer dürfen nur eigene Basisfelder ändern (`displayName`, `lastLoginAt`, `onboardingState`, `preferences`, `updatedAt`)
   - `onboardingState` darf vom Benutzer selbst gepflegt werden
   - Rollen bleiben für Selbständerungen unveränderlich
 - `boatReservations`

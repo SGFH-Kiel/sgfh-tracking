@@ -8,11 +8,24 @@ import {
   Button,
   CircularProgress,
   Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Divider,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
-import { SystemConfig as SystemConfigType } from '../../types/models';
+import { SystemConfig as SystemConfigType, CalendarView } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
+
+const CALENDAR_VIEW_OPTIONS: { value: CalendarView; label: string }[] = [
+  { value: 'month', label: 'Monat' },
+  { value: 'week', label: 'Woche' },
+  { value: 'day', label: 'Tag' },
+];
+
+const DEFAULT_CALENDAR_VIEW: CalendarView = 'month';
 
 export const SystemConfig: React.FC = () => {
   const { setBreadcrumbs } = usePageTitle();
@@ -31,6 +44,7 @@ export const SystemConfig: React.FC = () => {
     id: 'default',
     yearChangeDate: new Date(new Date().getFullYear(), 0, 1),
     workHourThreshold: 20,
+    calendarDefaults: { vormerkbuch: DEFAULT_CALENDAR_VIEW, arbeitskalender: DEFAULT_CALENDAR_VIEW },
   });
 
 
@@ -121,6 +135,45 @@ export const SystemConfig: React.FC = () => {
           }
           InputProps={{ inputProps: { min: 0 } }}
         />
+
+        <Divider />
+        <Typography variant="subtitle1" fontWeight="medium">
+          Standard-Kalenderansicht
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <FormControl fullWidth>
+            <InputLabel>Vormerkbuch</InputLabel>
+            <Select
+              value={config.calendarDefaults?.vormerkbuch ?? DEFAULT_CALENDAR_VIEW}
+              label="Vormerkbuch"
+              onChange={(e) => setConfig({
+                ...config,
+                calendarDefaults: {
+                  arbeitskalender: config.calendarDefaults?.arbeitskalender ?? DEFAULT_CALENDAR_VIEW,
+                  vormerkbuch: e.target.value as CalendarView,
+                },
+              })}
+            >
+              {CALENDAR_VIEW_OPTIONS.map(o => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <FormControl fullWidth>
+            <InputLabel>Arbeitskalender</InputLabel>
+            <Select
+              value={config.calendarDefaults?.arbeitskalender ?? DEFAULT_CALENDAR_VIEW}
+              label="Arbeitskalender"
+              onChange={(e) => setConfig({
+                ...config,
+                calendarDefaults: {
+                  vormerkbuch: config.calendarDefaults?.vormerkbuch ?? DEFAULT_CALENDAR_VIEW,
+                  arbeitskalender: e.target.value as CalendarView,
+                },
+              })}
+            >
+              {CALENDAR_VIEW_OPTIONS.map(o => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+            </Select>
+          </FormControl>
+        </Box>
 
         {error && (
           <Alert severity="error" onClose={() => setError(null)}>

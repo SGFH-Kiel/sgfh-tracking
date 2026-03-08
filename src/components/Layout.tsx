@@ -23,6 +23,7 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import DirectionsBoatIcon from '@mui/icons-material/DirectionsBoat';
 import GroupIcon from '@mui/icons-material/Group';
 import SettingsIcon from '@mui/icons-material/Settings';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import { useApp } from '../contexts/AppContext';
 import { usePageTitle } from '../contexts/PageTitleContext';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
@@ -35,12 +36,14 @@ import { SystemConfig } from './Admin/SystemConfig';
 import { Handyman } from '@mui/icons-material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { UserGuide } from './Onboarding/UserGuide';
+import { UserPreferencesDialog } from './UserPreferencesDialog';
 
 export const Layout: React.FC = () => {
   const { isAdmin, isSuperAdmin, signOut, currentUser } = useApp();
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(Boolean(currentUser && (!currentUser.onboardingState || currentUser.onboardingState === 'not_started')));
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const { breadcrumbs } = usePageTitle();
   const currentPath = useLocation().pathname;
 
@@ -145,6 +148,16 @@ export const Layout: React.FC = () => {
             </Breadcrumbs>
           </Box>
           <Stack direction="row" spacing={1}>
+            <IconButton
+              onClick={() => setPrefsOpen(true)}
+              sx={{
+                color: 'white',
+                '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)' }
+              }}
+              title={currentUser?.displayName}
+            >
+              <AccountCircleIcon />
+            </IconButton>
             <Button
               color="inherit"
               onClick={() => setGuideOpen(true)}
@@ -251,6 +264,7 @@ export const Layout: React.FC = () => {
         </Container>
       </Box>
       <UserGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
+      <UserPreferencesDialog open={prefsOpen} onClose={() => setPrefsOpen(false)} />
     </Box>
   );
 };

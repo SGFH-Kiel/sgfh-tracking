@@ -1,8 +1,19 @@
+export type CalendarView = 'month' | 'week' | 'day';
+
+export interface CalendarDefaults {
+  vormerkbuch: CalendarView;
+  arbeitskalender: CalendarView;
+}
+
 export enum UserRole {
   SUPERADMIN = 'SUPERADMIN',
   ADMIN = 'ADMIN',
   MEMBER = 'MEMBER',
   APPLICANT = 'APPLICANT'
+}
+
+export interface UserPreferences {
+  calendarDefaults?: Partial<CalendarDefaults>;
 }
 
 export interface User {
@@ -14,6 +25,7 @@ export interface User {
   feesPaid: boolean;
   skipHours?: boolean;
   onboardingState?: 'not_started' | 'skipped' | 'completed';
+  preferences?: UserPreferences;
   createdAt: Date;
   updatedAt: Date;
   emailVerified?: boolean;
@@ -107,6 +119,7 @@ export interface SystemConfig {
   id: string;
   yearChangeDate: Date; // Stored with year 2000, only month and day are relevant
   workHourThreshold: number;
+  calendarDefaults?: CalendarDefaults;
   featureFlags?: {
     enableMemberCreation?: boolean;
   };

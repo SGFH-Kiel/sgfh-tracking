@@ -10,7 +10,7 @@ import { Calendar, dayjsLocalizer } from 'react-big-calendar';
 import dayjs from 'dayjs'
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useApp } from '../../contexts/AppContext';
-import { BoatReservation } from '../../types/models';
+import { BoatReservation, CalendarView } from '../../types/models';
 import { getContrastColor } from '../../utils/colors';
 import { ReservationDialog } from './ReservationDialog';
 import { ReservationDetailsDialog } from './ReservationDetailsDialog';
@@ -18,7 +18,7 @@ import { ReservationDetailsDialog } from './ReservationDetailsDialog';
 const localizer = dayjsLocalizer(dayjs);
 
 export const BoatReservationCalendar: React.FC = () => {
-  const { database, currentUser, boats } = useApp();
+  const { database, currentUser, boats, systemConfig } = useApp();
   const { canReserve, missingRequirements } = useMemberReservationEligibility();
   const [reservations, setReservations] = useState<BoatReservation[]>([]);
   const [selectedReservation, setSelectedReservation] = useState<BoatReservation | null>(null);
@@ -26,7 +26,20 @@ export const BoatReservationCalendar: React.FC = () => {
   const [isReservationDialogOpen, setIsReservationDialogOpen] = useState(false);
   const [displayDate, setDisplayDate] = useState<Date>(new Date());
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
-  const [selectedView, setSelectedView] = useState<'month' | 'week' | 'work_week' | 'day' | 'agenda'>('week');
+
+  const defaultView: CalendarView =
+    currentUser?.preferences?.calendarDefaults?.vormerkbuch ??
+    systemConfig.calendarDefaults?.vormerkbuch ??
+    'week';
+  const [selectedView, setSelectedView] = useState<CalendarView>(defaultView);
+
+  useEffect(() => {
+    setSelectedView(
+      currentUser?.preferences?.calendarDefaults?.vormerkbuch ??
+      systemConfig.calendarDefaults?.vormerkbuch ??
+      'week'
+    );
+  }, [currentUser?.preferences?.calendarDefaults?.vormerkbuch, systemConfig.calendarDefaults?.vormerkbuch]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -175,7 +188,7 @@ export const BoatReservationCalendar: React.FC = () => {
           onNavigate={(range) => {
             setDisplayDate(range);
           }}
-          onView={setSelectedView}
+          onView={(v) => setSelectedView(v as CalendarView)}
           titleAccessor="title"
           messages={{
             next: 'Weiter',

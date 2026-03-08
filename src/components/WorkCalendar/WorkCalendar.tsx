@@ -3,7 +3,7 @@ import { Paper } from '@mui/material';
 import dayjs from 'dayjs';
 import 'dayjs/locale/de';
 import { useApp } from '../../contexts/AppContext';
-import { WorkAppointment } from '../../types/models';
+import { WorkAppointment, CalendarView } from '../../types/models';
 import { AppointmentDialog } from './AppointmentDialog';
 import { AppointmentDetailsDialog } from './AppointmentDetailsDialog';
 import { Calendar, dayjsLocalizer } from 'react-big-calendar';
@@ -19,8 +19,21 @@ export const WorkCalendar: React.FC = () => {
   const [selectedAppointment, setSelectedAppointment] = useState<WorkAppointment | undefined>();
   const [displayDate, setDisplayDate] = useState<Date>(new Date());
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
-  const [selectedView, setSelectedView] = useState<'month' | 'week' | 'work_week' | 'day' | 'agenda'>('week');
-  const { database, currentUser, isAdmin, isAnyBootswart } = useApp();
+  const { database, currentUser, isAdmin, isAnyBootswart, systemConfig } = useApp();
+
+  const defaultView: CalendarView =
+    currentUser?.preferences?.calendarDefaults?.arbeitskalender ??
+    systemConfig.calendarDefaults?.arbeitskalender ??
+    'week';
+  const [selectedView, setSelectedView] = useState<CalendarView>(defaultView);
+
+  useEffect(() => {
+    setSelectedView(
+      currentUser?.preferences?.calendarDefaults?.arbeitskalender ??
+      systemConfig.calendarDefaults?.arbeitskalender ??
+      'week'
+    );
+  }, [currentUser?.preferences?.calendarDefaults?.arbeitskalender, systemConfig.calendarDefaults?.arbeitskalender]);
 
   const refreshAppointments = useCallback(async () => {
     const aptms = await database.getDocuments<WorkAppointment>('workAppointments');
@@ -88,7 +101,7 @@ export const WorkCalendar: React.FC = () => {
           onNavigate={(range) => {
             setDisplayDate(range);
           }}
-          onView={setSelectedView}
+          onView={(v) => setSelectedView(v as CalendarView)}
           titleAccessor="title"
           messages={{
             next: 'Weiter',

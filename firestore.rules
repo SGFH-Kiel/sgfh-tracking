@@ -145,7 +145,7 @@ service cloud.firestore {
         (request.auth.uid == userId &&
           request.resource.data.email == resource.data.email &&
           request.resource.data.roles == resource.data.roles &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'lastLoginAt', 'onboardingState', 'updatedAt']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'lastLoginAt', 'onboardingState', 'preferences', 'updatedAt']) &&
           (!('onboardingState' in request.resource.data) || ['not_started', 'skipped', 'completed'].hasAny([request.resource.data.onboardingState]))) ||
         (isAdmin() && (!request.resource.data.roles.hasAny(['SUPERADMIN']) || (resource.data.roles.hasAny(['SUPERADMIN']) && request.resource.data.roles.hasAny(['SUPERADMIN'])))) ||
         isSuperAdmin();
