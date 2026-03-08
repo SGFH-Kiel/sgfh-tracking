@@ -28,6 +28,7 @@
 - `workAppointments`
   - Strukturvalidierung für neue Termine
   - private Selbsteinträge bleiben möglich
+  - Ersteller eines privaten Einzeleintrags darf diesen bearbeiten, solange der Teilnehmerstatus noch nicht `confirmed` ist
 
 ## Wichtige Einschränkung
 

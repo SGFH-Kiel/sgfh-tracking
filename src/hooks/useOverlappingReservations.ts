@@ -44,12 +44,24 @@ export const useOverlappingReservations = ({ startTime, endTime, excludeReservat
 
   useEffect(() => {
     async function checkOverlapping() {
-      const hasReservations = await hasOverlappingReservations();
-      setOverlapping(hasReservations[1]);
-      setWarningOverlaps(hasReservations[2]);
+      try {
+        const all = await database.query<BoatReservation>('boatReservations', [
+          { field: 'startTime', operator: 'lte', value: endTime.toDate() },
+          { field: 'endTime', operator: 'gte', value: startTime.toDate() },
+        ]);
+        const active = all.filter(
+          (r) => r.id !== excludeReservationId && r.status !== 'cancelled' && r.status !== 'rejected'
+        );
+        const hard = active.filter((r) => r.status === 'pending' || r.status === 'approved');
+        const warnings = active.filter((r) => r.status === 'draft');
+        setOverlapping(hard);
+        setWarningOverlaps(warnings);
+      } catch (error) {
+        console.error('Error checking overlapping reservations:', error);
+      }
     }
     checkOverlapping();
-  }, [hasOverlappingReservations, startTime, endTime, excludeReservationId]);
+  }, [database, startTime, endTime, excludeReservationId]);
 
   return {
     hasOverlappingReservations,

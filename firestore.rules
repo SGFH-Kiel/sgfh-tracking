@@ -198,7 +198,12 @@ service cloud.firestore {
         )) && validWorkAppointment(request.resource.data);
 
       allow update: if isAdmin() || isBootswart(resource.data.boatId) ||
-        (isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']) && request.resource.data.participants is list);
+        (isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']) && request.resource.data.participants is list) ||
+        (isMember() &&
+          resource.data.private == true &&
+          resource.data.participants.size() == 1 &&
+          resource.data.participants[0].userId == request.auth.uid &&
+          resource.data.participants[0].status != 'confirmed');
 
       allow delete: if isAdmin() || isBootswart(resource.data.boatId) || (resource.data.private == true && resource.data.participants.size() == 1 && resource.data.participants[0].userId == request.auth.uid);
     }

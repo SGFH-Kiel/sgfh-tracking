@@ -26,6 +26,17 @@ Mitglieder können auch ohne finale Berechtigung eine `draft`-Reservierung anleg
 Diese ist für Planung gedacht und blockiert nicht hart.
 Sobald die Voraussetzungen erfüllt sind (`feesPaid` oder `skipHours`), kann die Vormerkung über „Finalisieren" in den Status `pending` oder `approved` überführt werden.
 
+## Gesperrte Boote
+
+Ist ein Boot als `blocked` markiert, können nur `draft`-Vormerkungen erstellt werden — keine finalen Reservierungen (`pending`/`approved`).
+Wechselt der Benutzer in der Eingabemaske von „Unverbindliche Vormerkung" auf „Finale Reservierung", wird ein ggf. gesperrtes Boot automatisch deselektiert.
+
+## Zeitfenster-Erkennung
+
+Beim Rendern der Bootsauswahl werden nur aktive Reservierungen berücksichtigt (`pending`, `approved`, `draft`).
+Stornierte (`cancelled`) und abgelehnte (`rejected`) Reservierungen blockieren das Zeitfenster nicht mehr.
+Ebenso wird die Bootsauswahl beim Ändern von Start- oder Endzeit nur zurückgesetzt, wenn das gewählte Boot im neuen Zeitraum tatsächlich bereits reserviert ist.
+
 ## Stornierung
 
 Besitzer können eigene Reservierungen aus den Status `draft`, `pending` und `approved` heraus stornieren.

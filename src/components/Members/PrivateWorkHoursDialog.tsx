@@ -74,7 +74,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, editAppointment]);
 
   const handleSubmit = async () => {
     if (!currentUser || isSubmitting) return;
