@@ -35,6 +35,7 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   CheckCircleOutline as CheckCircleIcon,
+  Payments as PaymentsIcon,
 } from '@mui/icons-material';
 import { BoatReservation, User, UserRole } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
@@ -182,6 +183,33 @@ export const MemberList: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<User | null>(null);
 
+  const [bulkFeesPaidDialogOpen, setBulkFeesPaidDialogOpen] = useState(false);
+  const [bulkFeesPaidLoading, setBulkFeesPaidLoading] = useState(false);
+
+  const handleBulkSetFeesPaid = async () => {
+    setBulkFeesPaidLoading(true);
+    try {
+      const unpaid = users.filter(u => !u.feesPaid && !u.deactivated);
+      await Promise.all(
+        unpaid.map(u => database.updateDocument<User>('users', u.id, {
+          feesPaid: true,
+          updatedAt: new Date(),
+        }))
+      );
+      reload();
+      enqueueSnackbar(
+        `${unpaid.length} Mitglied${unpaid.length !== 1 ? 'er' : ''} als „Bezahlt" markiert.`,
+        { variant: 'success' }
+      );
+    } catch (error) {
+      console.error('Error setting feesPaid:', error);
+      enqueueSnackbar('Fehler beim Aktualisieren der Beitragsstatus.', { variant: 'error' });
+    } finally {
+      setBulkFeesPaidLoading(false);
+      setBulkFeesPaidDialogOpen(false);
+    }
+  };
+
   const handleDeleteClick = (member: User) => {
     setMemberToDelete(member);
     setDeleteDialogOpen(true);
@@ -250,16 +278,28 @@ export const MemberList: React.FC = () => {
 
   return (
     <Paper sx={{ p: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h5">Mitglieder</Typography>
-        {isSuperAdmin && systemConfig.featureFlags?.enableMemberCreation && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpen()}
-          >
-            Mitglied hinzufügen
-          </Button>
+        {isSuperAdmin && (
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="outlined"
+              color="success"
+              startIcon={<PaymentsIcon />}
+              onClick={() => setBulkFeesPaidDialogOpen(true)}
+            >
+              Alle Beiträge bezahlt
+            </Button>
+            {systemConfig.featureFlags?.enableMemberCreation && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => handleOpen()}
+              >
+                Mitglied hinzufügen
+              </Button>
+            )}
+          </Box>
         )}
       </Box>
 
@@ -450,6 +490,35 @@ export const MemberList: React.FC = () => {
           </Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained" autoFocus>
             Löschen
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={bulkFeesPaidDialogOpen}
+        onClose={() => !bulkFeesPaidLoading && setBulkFeesPaidDialogOpen(false)}
+      >
+        <DialogTitle>Alle Beiträge als bezahlt markieren</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Alle aktiven Mitglieder ohne „Bezahlt"-Status (
+            {users.filter(u => !u.feesPaid && !u.deactivated).length} Mitglieder) werden auf{' '}
+            <strong>Beitrag bezahlt</strong> gesetzt. Diese Aktion kann nicht automatisch
+            rückgängig gemacht werden.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkFeesPaidDialogOpen(false)} disabled={bulkFeesPaidLoading}>
+            Abbrechen
+          </Button>
+          <Button
+            onClick={handleBulkSetFeesPaid}
+            color="success"
+            variant="contained"
+            disabled={bulkFeesPaidLoading}
+            startIcon={bulkFeesPaidLoading ? <CircularProgress size={16} /> : <PaymentsIcon />}
+            autoFocus
+          >
+            Jetzt markieren
           </Button>
         </DialogActions>
       </Dialog>
