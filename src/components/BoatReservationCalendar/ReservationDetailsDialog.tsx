@@ -53,7 +53,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   reservation,
   onUpdate,
 }) => {
-  const { database, currentUser, isAdmin } = useApp();
+  const { database, currentUser, isAdmin, isSuperAdmin } = useApp();
   const { canReserve } = useMemberReservationEligibility();
   const [boat, setBoat] = useState<Boat | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -116,6 +116,8 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
 
   const isOwner = currentUser?.id === reservation.userId;
   const isBootswartOrAdmin = (boat && currentUser && boat.bootswart === currentUser.id) || isAdmin;
+  const isFutureReservation = reservation.startTime > new Date();
+  const canEdit = (isOwner && reservation.status === 'draft') || (isSuperAdmin && isFutureReservation && !['cancelled', 'rejected'].includes(reservation.status));
 
   const handleStatusChange = async (newStatus: 'approved' | 'rejected' | 'cancelled') => {
     if (!isBootswartOrAdmin || isSubmitting) return;
@@ -430,7 +432,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
           </Box>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <Box sx={{ display: 'flex', gap: 2 }}>
-              {isOwner && !isEditing && reservation.status === 'draft' && (
+              {canEdit && !isEditing && (
                 <Button
                   color="primary"
                   variant="outlined"
