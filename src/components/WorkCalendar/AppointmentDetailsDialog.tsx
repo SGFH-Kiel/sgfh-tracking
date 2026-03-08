@@ -18,6 +18,7 @@ import {
 import {
   Check as CheckIcon,
   Close as CloseIcon,
+  ContentCopy as CopyIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
   Save as SaveIcon,
@@ -27,6 +28,7 @@ import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/de';
 
 import { WorkAppointment, WorkParticipant } from '../../types/models';
+import { CopyAppointmentSeriesDialog } from './CopyAppointmentSeriesDialog';
 import { useApp } from '../../contexts/AppContext';
 
 dayjs.locale('de');
@@ -37,6 +39,7 @@ interface AppointmentDetailsDialogProps {
   appointment: WorkAppointment;
   onDelete?: () => Promise<void>;
   onUpdate?: () => Promise<void>;
+  onCopy?: (copies: Omit<WorkAppointment, 'id'>[]) => Promise<void>;
 }
 
 export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> = ({
@@ -45,10 +48,12 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   appointment,
   onDelete,
   onUpdate,
+  onCopy,
 }) => {
   const { isAdmin, isSuperAdmin, database, boats, currentUser } = useApp();
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
   const [editedData, setEditedData] = useState<Partial<WorkAppointment>>(appointment);
 
   useEffect(() => {
@@ -473,7 +478,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50' }}>
         <Box sx={{ display: 'flex', gap: 2, width: '100%', justifyContent: 'space-between' }}>
-          <Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
             {(canEdit || isMyPrivateAppointment) && onDelete && !isEditing && (
               <Button
                 color="error"
@@ -483,6 +488,17 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                 disabled={loading === true}
               >
                 Löschen
+              </Button>
+            )}
+            {canEdit && onCopy && !isEditing && (
+              <Button
+                color="secondary"
+                variant="outlined"
+                onClick={() => setIsCopyDialogOpen(true)}
+                startIcon={<CopyIcon />}
+                disabled={loading === true}
+              >
+                Serie
               </Button>
             )}
           </Box>
@@ -549,6 +565,17 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
           </Box>
         </Box>
       </DialogActions>
+      {isCopyDialogOpen && onCopy && (
+        <CopyAppointmentSeriesDialog
+          open={isCopyDialogOpen}
+          onClose={() => setIsCopyDialogOpen(false)}
+          appointment={appointment}
+          onSave={async (copies) => {
+            await onCopy(copies);
+            setIsCopyDialogOpen(false);
+          }}
+        />
+      )}
     </Dialog>
   );
 };

@@ -27,6 +27,16 @@ import {
 } from 'firebase/firestore';
 import { DatabaseProvider, DatabaseDocument, QueryFilter } from '../../interfaces/database';
 
+function stripUndefined(obj: any): any {
+  if (obj === null || typeof obj !== 'object' || obj instanceof Date) return obj;
+  if (Array.isArray(obj)) return obj.map(stripUndefined);
+  return Object.fromEntries(
+    Object.entries(obj)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, stripUndefined(v)])
+  );
+}
+
 export class FirebaseDatabaseProvider implements DatabaseProvider {
   constructor(private db: Firestore) {}
 
@@ -110,7 +120,7 @@ export class FirebaseDatabaseProvider implements DatabaseProvider {
   }
 
   async addDocument(collectionName: string, data: any): Promise<string> {
-    const docRef = await addDoc(collection(this.db, collectionName), data);
+    const docRef = await addDoc(collection(this.db, collectionName), stripUndefined(data));
     return docRef.id;
   }
 

@@ -15,6 +15,7 @@ import {
 import {
   Check as CheckIcon,
   Close as CloseIcon,
+  ContentCopy as CopyIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
   Save as SaveIcon,
@@ -27,6 +28,7 @@ import { BoatReservation, Boat } from '../../types/models';
 import { useOverlappingReservations } from '../../hooks/useOverlappingReservations';
 import { useSnackbar } from 'notistack';
 import { syncPublicReservationFeed, deletePublicReservationFeed } from '../../domain/reservationSync';
+import { CopyReservationSeriesDialog } from './CopyReservationSeriesDialog';
 import { useMemberReservationEligibility } from '../../hooks/memberHooks';
 
 dayjs.locale('de');
@@ -36,6 +38,7 @@ interface ReservationDetailsDialogProps {
   onClose: () => void;
   reservation: BoatReservation;
   onUpdate: () => void;
+  onCopy?: (copies: Omit<BoatReservation, 'id'>[]) => Promise<void>;
 }
 
 interface EditableReservation {
@@ -52,12 +55,14 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   onClose,
   reservation,
   onUpdate,
+  onCopy,
 }) => {
   const { database, currentUser, isAdmin, isSuperAdmin } = useApp();
   const { canReserve } = useMemberReservationEligibility();
   const [boat, setBoat] = useState<Boat | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
   const [editedData, setEditedData] = useState<EditableReservation>(() => ({
     title: reservation.title,
     description: reservation.description || '',
@@ -417,7 +422,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
 
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50' }}>
         <Box sx={{ display: 'flex', gap: 2, width: '100%', justifyContent: 'space-between' }}>
-          <Box>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             {(isOwner || isBootswartOrAdmin) && !['cancelled', 'rejected'].includes(reservation.status) && (
               <Button
                 color="error"
@@ -427,6 +432,17 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
                 startIcon={<DeleteIcon />}
               >
                 Stornieren
+              </Button>
+            )}
+            {onCopy && !isEditing && !['cancelled', 'rejected'].includes(reservation.status) && (isOwner || isBootswartOrAdmin) && (
+              <Button
+                color="secondary"
+                variant="outlined"
+                onClick={() => setIsCopyDialogOpen(true)}
+                disabled={isSubmitting}
+                startIcon={<CopyIcon />}
+              >
+                Serie
               </Button>
             )}
           </Box>
@@ -504,6 +520,17 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
           </Box>
         </Box>
       </DialogActions>
+      {isCopyDialogOpen && onCopy && (
+        <CopyReservationSeriesDialog
+          open={isCopyDialogOpen}
+          onClose={() => setIsCopyDialogOpen(false)}
+          reservation={reservation}
+          onSave={async (copies) => {
+            await onCopy(copies);
+            setIsCopyDialogOpen(false);
+          }}
+        />
+      )}
     </Dialog>
   );
 };

@@ -11,6 +11,7 @@ import dayjs from 'dayjs'
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useApp } from '../../contexts/AppContext';
 import { BoatReservation, CalendarView } from '../../types/models';
+import { syncPublicReservationFeed } from '../../domain/reservationSync';
 import { getContrastColor } from '../../utils/colors';
 import { ReservationDialog } from './ReservationDialog';
 import { ReservationDetailsDialog } from './ReservationDetailsDialog';
@@ -207,6 +208,23 @@ export const BoatReservationCalendar: React.FC = () => {
           onClose={handleCloseDialogs}
           reservation={selectedReservation}
           onUpdate={handleReservationUpdate}
+          onCopy={async (copies) => {
+            await Promise.all(copies.map(async (copy) => {
+              const copyWithSnapshot = {
+                ...copy,
+                userId: currentUser!.id,
+                userName: currentUser!.displayName,
+                eligibilitySnapshot: {
+                  feesPaid: currentUser?.feesPaid ?? false,
+                  skipHours: currentUser?.skipHours === true,
+                  workHoursMet: canReserve,
+                },
+              };
+              const newId = await database.addDocument('boatReservations', copyWithSnapshot);
+              await syncPublicReservationFeed(database, { ...copyWithSnapshot, id: newId }, boats);
+            }));
+            await fetchData();
+          }}
         />
       )}
 

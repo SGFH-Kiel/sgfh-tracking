@@ -11,6 +11,10 @@
   - Konflikterkennung
   - Warn- vs. Blockierkonflikte
   - öffentlicher Feed
+- `src/domain/__tests__/seriesCopy.test.ts`
+  - `stripUndefined`: entfernt `undefined`-Felder, behält `null`, `Date`, Arrays
+  - Reservierungs-Seriekopie: Anzahl, Intervall, Dauer, Benutzeridentität, Status, Sichtbarkeit, keine `publicDetails`, `eligibilitySnapshot`, Beschreibung
+  - Arbeitstermin-Seriekopie: Anzahl, Intervall, Dauer, leere Teilnehmer, Zubehör, optionale Felder, fehlende `boatId`
 - `src/firestore/__tests__/rules.test.ts`
   - anonymer Zugriff
   - Mitgliedszugriff
@@ -18,6 +22,9 @@
   - öffentliche Feed-Rechte
   - Direktgenehmigung durch Bootswart
   - Regression: Besitzer kann `status=approved` nicht direkt setzen wenn Boot `requiresApproval` hat
+  - Benutzerpräferenzen: eigene `preferences` aktualisieren erlaubt, fremde verweigert, Rollen-Manipulation verweigert
+  - Seriekopie: Draft mit eigener Identität erlaubt, fremde Identität verweigert, fehlender `eligibilitySnapshot` verweigert
+  - Arbeitstermine: Admin kann erstellen, Mitglied ohne Bootswart-Rolle wird verweigert
 
 ## Tests ausführen
 

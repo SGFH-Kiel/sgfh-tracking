@@ -306,4 +306,115 @@ describe('firestore rules', () => {
       updatedAt: new Date(),
     }));
   });
+
+  it('allows user to update own preferences with updatedAt', async () => {
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'users', 'member-1'), {
+      preferences: {
+        calendarDefaults: {
+          vormerkbuch: 'week',
+          arbeitskalender: 'month',
+        },
+      },
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('denies user from updating another user preferences', async () => {
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertFails(updateDoc(doc(db, 'users', 'admin-1'), {
+      preferences: { calendarDefaults: { vormerkbuch: 'day' } },
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('denies user from changing own roles via preferences update', async () => {
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertFails(updateDoc(doc(db, 'users', 'member-1'), {
+      roles: ['SUPERADMIN'],
+      preferences: {},
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows member to create series copy as draft with own identity', async () => {
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(setDoc(doc(db, 'boatReservations', 'r-series-1'), {
+      boatId: 'boat-1',
+      userId: 'member-1',
+      userName: 'Mitglied',
+      title: 'Wochentour',
+      description: 'Kopie',
+      startTime: new Date('2025-02-01T10:00:00Z'),
+      endTime: new Date('2025-02-01T12:00:00Z'),
+      status: 'draft',
+      visibility: 'private',
+      eligibilitySnapshot: { feesPaid: true, skipHours: false, workHoursMet: true },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('denies member from creating series copy with another users identity', async () => {
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertFails(setDoc(doc(db, 'boatReservations', 'r-series-stolen'), {
+      boatId: 'boat-1',
+      userId: 'admin-1',
+      userName: 'Admin',
+      title: 'Wochentour',
+      description: 'Kopie',
+      startTime: new Date('2025-02-08T10:00:00Z'),
+      endTime: new Date('2025-02-08T12:00:00Z'),
+      status: 'draft',
+      visibility: 'private',
+      eligibilitySnapshot: { feesPaid: true, skipHours: false, workHoursMet: true },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('denies series copy without eligibilitySnapshot', async () => {
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertFails(setDoc(doc(db, 'boatReservations', 'r-series-nosnap'), {
+      boatId: 'boat-1',
+      userId: 'member-1',
+      userName: 'Mitglied',
+      title: 'Wochentour',
+      startTime: new Date('2025-02-15T10:00:00Z'),
+      endTime: new Date('2025-02-15T12:00:00Z'),
+      status: 'draft',
+      visibility: 'private',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows admin to create work appointment', async () => {
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertSucceeds(setDoc(doc(db, 'workAppointments', 'wa-1'), {
+      title: 'Bootsputzen',
+      description: 'Herbstputz',
+      boatId: 'boat-1',
+      participants: [],
+      supplies: [],
+      startTime: new Date('2025-03-01T09:00:00Z'),
+      endTime: new Date('2025-03-01T13:00:00Z'),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('denies plain member from creating non-private work appointment', async () => {
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertFails(setDoc(doc(db, 'workAppointments', 'wa-denied'), {
+      title: 'Putzen',
+      description: '',
+      participants: [],
+      supplies: [],
+      startTime: new Date('2025-03-01T09:00:00Z'),
+      endTime: new Date('2025-03-01T13:00:00Z'),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+  });
 });

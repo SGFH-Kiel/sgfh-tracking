@@ -48,3 +48,15 @@ Bereits stornierte oder abgelehnte Reservierungen zeigen keinen Stornieren-Butto
 Nur `draft`-Reservierungen dürfen vom Besitzer gelöscht werden.
 Finale Reservierungen (`pending`, `approved`) müssen storniert (nicht gelöscht) werden, damit der Statusverlauf erhalten bleibt.
 Admins können jede Reservierung unabhängig vom Status löschen.
+
+## Serienkopierfunktion
+
+Über den Button **„Serie"** im `ReservationDetailsDialog` können Reservierungen als Serie kopiert werden.
+
+- Sichtbar für: Besitzer der Reservierung, Bootswart des betreffenden Bootes, Admins
+- Nicht sichtbar bei Status `cancelled` oder `rejected`
+- Konfigurierbar: Anzahl Kopien (1–52) und Intervall (Tage oder Wochen)
+- Alle Kopien werden als **`draft`** mit **`visibility: private`** erstellt — unabhängig vom Status oder der Sichtbarkeit der Ursprungsreservierung
+- `publicDetails` wird bewusst **nicht** kopiert
+- Die Kopien erhalten die Identität (`userId`, `userName`) und den aktuellen Berechtigungsstatus (`eligibilitySnapshot`) des **ausführenden Benutzers**, nicht des ursprünglichen Besitzers
+- Nach Erstellung müssen die Kopien bei Bedarf individuell über „Finalisieren" in einen finalen Status überführt werden

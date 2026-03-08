@@ -146,6 +146,10 @@ export const WorkCalendar: React.FC = () => {
             setDetailsDialogOpen(false);
             await refreshAppointments();
           }}
+          onCopy={async (copies) => {
+            await Promise.all(copies.map(copy => database.addDocument('workAppointments', copy)));
+            await refreshAppointments();
+          }}
         />
       )}
     </>
