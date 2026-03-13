@@ -101,7 +101,7 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
         ? 'approved'
         : requestedStatus === 'draft'
           ? 'draft'
-          : (selectedBoat.requiresApproval && currentUser.id !== selectedBoat.bootswart)
+          : (selectedBoat.requiresApproval && currentUser.id !== selectedBoat.bootswart && currentUser.id !== selectedBoat.bootswart2)
             ? 'pending'
             : 'approved';
 

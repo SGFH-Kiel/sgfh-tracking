@@ -89,7 +89,8 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
     }
   }, []);
 
-  const isAppointmentBootswart = !!appointment.boatId && boats.find(b => b.id === appointment.boatId)?.bootswart === currentUser?.id;
+  const appointmentBoat = appointment.boatId ? boats.find(b => b.id === appointment.boatId) : undefined;
+  const isAppointmentBootswart = !!appointmentBoat && (appointmentBoat.bootswart === currentUser?.id || appointmentBoat.bootswart2 === currentUser?.id);
   const isCreator = !!currentUser && appointment.createdByUserId === currentUser.id;
   const isPast = appointment.endTime < new Date();
   const hasConfirmedParticipants = appointment.participants.some(p => p.status === 'confirmed');

@@ -26,7 +26,7 @@ service cloud.firestore {
     }
 
     function isBootswart(boatId) {
-      return isMember() && boatId != null && boatId != '' && get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart == request.auth.uid;
+      return isMember() && boatId != null && boatId != '' && (get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart == request.auth.uid || get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart2 == request.auth.uid);
     }
 
     function isAllowedDomain() {

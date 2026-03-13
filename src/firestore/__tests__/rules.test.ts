@@ -39,12 +39,30 @@ describe('firestore rules', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+      await setDoc(doc(db, 'users', 'bootswart2-1'), {
+        email: 'bootswart2@example.com',
+        displayName: 'Zweiter Bootswart',
+        roles: ['MEMBER'],
+        feesPaid: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
       await setDoc(doc(db, 'boats', 'boat-1'), {
         name: 'Laser',
         bootswart: 'admin-1',
         requiresApproval: true,
         blocked: false,
         color: '#123456',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      await setDoc(doc(db, 'boats', 'boat-2'), {
+        name: 'Optimist',
+        bootswart: 'admin-1',
+        bootswart2: 'bootswart2-1',
+        requiresApproval: true,
+        blocked: false,
+        color: '#654321',
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -416,5 +434,140 @@ describe('firestore rules', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     }));
+  });
+
+  // --- bootswart2 tests ---
+
+  it('allows bootswart2 to update their boat', async () => {
+    const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'boats', 'boat-2'), {
+      description: 'Geänderte Beschreibung',
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('denies bootswart2 from updating a boat they are not assigned to', async () => {
+    const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+    await assertFails(updateDoc(doc(db, 'boats', 'boat-1'), {
+      description: 'Darf nicht',
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows bootswart2 to approve a pending reservation for their boat', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'boatReservations', 'r-bw2-pending'), {
+        boatId: 'boat-2',
+        userId: 'member-1',
+        userName: 'Mitglied',
+        title: 'Tour',
+        description: '',
+        startTime: new Date('2025-04-01T10:00:00Z'),
+        endTime: new Date('2025-04-01T12:00:00Z'),
+        status: 'pending',
+        visibility: 'private',
+        eligibilitySnapshot: { feesPaid: true, skipHours: false, workHoursMet: true },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'boatReservations', 'r-bw2-pending'), {
+      status: 'approved',
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('denies bootswart2 from approving a reservation for a boat they are not assigned to', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'boatReservations', 'r-bw2-other'), {
+        boatId: 'boat-1',
+        userId: 'member-1',
+        userName: 'Mitglied',
+        title: 'Tour',
+        description: '',
+        startTime: new Date('2025-04-02T10:00:00Z'),
+        endTime: new Date('2025-04-02T12:00:00Z'),
+        status: 'pending',
+        visibility: 'private',
+        eligibilitySnapshot: { feesPaid: true, skipHours: false, workHoursMet: true },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+    await assertFails(updateDoc(doc(db, 'boatReservations', 'r-bw2-other'), {
+      status: 'approved',
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows bootswart2 to create a work appointment for their boat', async () => {
+    const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+    await assertSucceeds(setDoc(doc(db, 'workAppointments', 'wa-bw2'), {
+      title: 'Bootsputzen',
+      description: 'Herbstputz',
+      boatId: 'boat-2',
+      participants: [],
+      supplies: [],
+      startTime: new Date('2025-05-01T09:00:00Z'),
+      endTime: new Date('2025-05-01T13:00:00Z'),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('denies bootswart2 from creating a work appointment for a boat they are not assigned to', async () => {
+    const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+    await assertFails(setDoc(doc(db, 'workAppointments', 'wa-bw2-denied'), {
+      title: 'Putzen fremdes Boot',
+      description: '',
+      boatId: 'boat-1',
+      participants: [],
+      supplies: [],
+      startTime: new Date('2025-05-02T09:00:00Z'),
+      endTime: new Date('2025-05-02T13:00:00Z'),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows bootswart2 to update a work appointment for their boat', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'workAppointments', 'wa-bw2-update'), {
+        title: 'Arbeit',
+        description: '',
+        boatId: 'boat-2',
+        participants: [],
+        supplies: [],
+        startTime: new Date('2025-05-03T09:00:00Z'),
+        endTime: new Date('2025-05-03T13:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'workAppointments', 'wa-bw2-update'), {
+      description: 'Aktualisiert',
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows bootswart2 to delete a work appointment for their boat', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'workAppointments', 'wa-bw2-delete'), {
+        title: 'Zu löschen',
+        description: '',
+        boatId: 'boat-2',
+        participants: [],
+        supplies: [],
+        startTime: new Date('2025-05-04T09:00:00Z'),
+        endTime: new Date('2025-05-04T13:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+    await assertSucceeds(deleteDoc(doc(db, 'workAppointments', 'wa-bw2-delete')));
   });
 });

@@ -120,7 +120,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   };
 
   const isOwner = currentUser?.id === reservation.userId;
-  const isBootswartOrAdmin = (boat && currentUser && boat.bootswart === currentUser.id) || isAdmin;
+  const isBootswartOrAdmin = (boat && currentUser && (boat.bootswart === currentUser.id || boat.bootswart2 === currentUser.id)) || isAdmin;
   const isFutureReservation = reservation.startTime > new Date();
   const canEdit = (isOwner && reservation.status === 'draft') || (isSuperAdmin && isFutureReservation && !['cancelled', 'rejected'].includes(reservation.status));
 

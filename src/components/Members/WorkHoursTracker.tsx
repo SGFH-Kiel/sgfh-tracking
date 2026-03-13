@@ -14,9 +14,7 @@ import {
   Alert,
   Chip,
   LinearProgress,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+  Collapse,
   IconButton,
   Button,
   SxProps,
@@ -384,6 +382,7 @@ export const WorkHoursTracker: React.FC = () => {
               <TableRow>
                 <TableCell>Datum</TableCell>
                 <TableCell>Uhrzeit</TableCell>
+                <TableCell>Titel</TableCell>
                 <TableCell>Dauer</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell />
@@ -392,7 +391,7 @@ export const WorkHoursTracker: React.FC = () => {
             <TableBody>
               {userAppointments.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4}>
+                  <TableCell colSpan={5}>
                     <Alert severity="info">
                       Es sind noch keine Arbeitsstunden vorhanden. Neue Einträge werden hier sofort angezeigt und als ausstehend markiert, bis sie bestätigt wurden.
                     </Alert>
@@ -431,6 +430,7 @@ export const WorkHoursTracker: React.FC = () => {
                         {" - "}
                         {end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
                       </TableCell>
+                      <TableCell>{appointment.title}</TableCell>
                       <TableCell>{shortHumanizer(duration)}</TableCell>
                       <TableCell>
                         <StatusChip overall={false} status={
@@ -534,7 +534,17 @@ export const WorkHoursTracker: React.FC = () => {
                 return (
                   <React.Fragment key={user.id}>
                     <TableRow>
-                      <TableCell>{user.displayName}</TableCell>
+                      <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}
+                        >
+                          <ExpandMoreIcon sx={{ transform: expandedUser === user.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                        </IconButton>
+                        {user.displayName}
+                      </Box>
+                    </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           <LinearProgress
@@ -570,14 +580,8 @@ export const WorkHoursTracker: React.FC = () => {
                     </TableRow>
                     <TableRow>
                       <TableCell colSpan={6} sx={{ py: 0, border: 0 }}>
-                        <Accordion
-                          expanded={expandedUser === user.id}
-                          onChange={(e, isExpanded) => setExpandedUser(isExpanded ? user.id : null)}
-                        >
-                          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                            <Typography>Arbeitstermine</Typography>
-                          </AccordionSummary>
-                          <AccordionDetails>
+                        <Collapse in={expandedUser === user.id} timeout="auto" unmountOnExit>
+                          <Box sx={{ py: 1 }}>
                             <TableContainer>
                               <Table size="small">
                                 <TableHead>
@@ -603,7 +607,8 @@ export const WorkHoursTracker: React.FC = () => {
                                       const duration = end.getTime() - start.getTime();
                                       const startDate = start.toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
                                       const endDate = end.toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit' });
-                                      const isBootswart = boats.find(b => b.id === appointment.boatId)?.bootswart === currentUser?.id;
+                                      const boatForAppointment = boats.find(b => b.id === appointment.boatId);
+                                      const isBootswart = boatForAppointment?.bootswart === currentUser?.id || boatForAppointment?.bootswart2 === currentUser?.id;
 
                                       return (
                                         <TableRow
@@ -666,8 +671,8 @@ export const WorkHoursTracker: React.FC = () => {
                                 </TableBody>
                               </Table>
                             </TableContainer>
-                          </AccordionDetails>
-                        </Accordion>
+                          </Box>
+                        </Collapse>
                       </TableCell>
                     </TableRow>
                   </React.Fragment>

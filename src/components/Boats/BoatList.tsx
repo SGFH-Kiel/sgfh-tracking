@@ -41,7 +41,7 @@ export const BoatList: React.FC = () => {
   const { setBreadcrumbs } = usePageTitle();
   const [open, setOpen] = useState(false);
   const [editingBoat, setEditingBoat] = useState<Boat | null>(null);
-  const isAnyBootswart = boats.some(boat => boat.bootswart === currentUser?.id);
+  const isAnyBootswart = boats.some(boat => boat.bootswart === currentUser?.id || boat.bootswart2 === currentUser?.id);
 
   useEffect(() => {
     setBreadcrumbs([
@@ -52,6 +52,7 @@ export const BoatList: React.FC = () => {
     name: '',
     description: '',
     bootswart: '',
+    bootswart2: '',
     requiresApproval: true,
     blocked: false,
     color: getRandomBoatColor(),
@@ -69,7 +70,7 @@ export const BoatList: React.FC = () => {
   }, [fetchUsers]);
 
   const handleOpen = (boat?: Boat) => {
-    if (!isAdmin && (!isAnyBootswart || boat?.bootswart !== currentUser?.id)) {
+    if (!isAdmin && (!isAnyBootswart || (boat?.bootswart !== currentUser?.id && boat?.bootswart2 !== currentUser?.id))) {
       return;
     }
     if (boat) {
@@ -78,6 +79,7 @@ export const BoatList: React.FC = () => {
         name: boat.name,
         description: boat.description || '',
         bootswart: boat.bootswart || '',
+        bootswart2: boat.bootswart2 || '',
         requiresApproval: boat.requiresApproval || false,
         blocked: boat.blocked || false,
         color: boat.color || getRandomBoatColor(),
@@ -88,6 +90,7 @@ export const BoatList: React.FC = () => {
         name: '',
         description: '',
         bootswart: '',
+        bootswart2: '',
         requiresApproval: true,
         blocked: false,
         color: getRandomBoatColor(),
@@ -108,6 +111,7 @@ export const BoatList: React.FC = () => {
           name: formData.name,
           description: formData.description,
           bootswart: formData.bootswart,
+          bootswart2: formData.bootswart2,
           requiresApproval: formData.requiresApproval || false,
           blocked: formData.blocked || false,
           color: formData.color,
@@ -118,6 +122,7 @@ export const BoatList: React.FC = () => {
           name: formData.name,
           description: formData.description,
           bootswart: formData.bootswart,
+          bootswart2: formData.bootswart2,
           requiresApproval: formData.requiresApproval || false,
           blocked: formData.blocked || false,
           color: formData.color,
@@ -187,7 +192,11 @@ export const BoatList: React.FC = () => {
                   </Box>
                 </TableCell>
                 <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{boat.description}</TableCell>
-                <TableCell>{boat.bootswart ? users.find(u => u.id === boat.bootswart)?.displayName : '-'}</TableCell>
+                <TableCell>
+                  {boat.bootswart ? users.find(u => u.id === boat.bootswart)?.displayName : '-'}
+                  {boat.bootswart2 && (
+                    <><br />{users.find(u => u.id === boat.bootswart2)?.displayName}</>)}
+                </TableCell>
                 <TableCell>
                   {boat.requiresApproval ? 'Erforderlich' : 'Nicht erforderlich'}
                 </TableCell>
@@ -198,7 +207,7 @@ export const BoatList: React.FC = () => {
                     <Chip color="success" label="Freigegeben" size="small" />
                   )}
                 </TableCell>
-                {(isAdmin || (isAnyBootswart && boat.bootswart === currentUser?.id)) && (
+                {(isAdmin || (isAnyBootswart && (boat.bootswart === currentUser?.id || boat.bootswart2 === currentUser?.id))) && (
                   <TableCell>
                     <IconButton onClick={() => handleOpen(boat)} size="small">
                       <EditIcon />
@@ -269,13 +278,28 @@ export const BoatList: React.FC = () => {
             </Tooltip>
           </Box>
           <FormControl fullWidth margin="normal">
-            <InputLabel>Bootswart</InputLabel>
+            <InputLabel>Bootswart 1</InputLabel>
             <Select
-              label="Bootswart"
+              label="Bootswart 1"
               value={formData.bootswart}
               onChange={(e) => setFormData({ ...formData, bootswart: e.target.value })}
               fullWidth
-              required
+            >
+              <MenuItem value="">n/a</MenuItem>
+              {users.map((user) => (
+                <MenuItem key={user.id} value={user.id}>
+                  {user.displayName}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Bootswart 2</InputLabel>
+            <Select
+              label="Bootswart 2"
+              value={formData.bootswart2}
+              onChange={(e) => setFormData({ ...formData, bootswart2: e.target.value })}
+              fullWidth
             >
               <MenuItem value="">n/a</MenuItem>
               {users.map((user) => (

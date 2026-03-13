@@ -18,7 +18,8 @@ Wichtige Felder:
 Wichtige Felder:
 
 - `name`
-- `bootswart`
+- `bootswart` – User-ID des ersten Bootswarts (optional)
+- `bootswart2` – User-ID des zweiten Bootswarts (optional)
 - `requiresApproval`
 - `blocked`
 - `color`

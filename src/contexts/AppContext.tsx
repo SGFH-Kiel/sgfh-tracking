@@ -259,7 +259,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const isAdmin = currentUser?.roles.includes(UserRole.ADMIN) || currentUser?.roles.includes(UserRole.SUPERADMIN) || false;
   const isSuperAdmin = currentUser?.roles.includes(UserRole.SUPERADMIN) || false;
-  const isAnyBootswart = boats.some(boat => boat.bootswart === currentUser?.id!);
+  const isAnyBootswart = boats.some(boat => boat.bootswart === currentUser?.id! || boat.bootswart2 === currentUser?.id!);
 
   return (
     <AppContext.Provider 

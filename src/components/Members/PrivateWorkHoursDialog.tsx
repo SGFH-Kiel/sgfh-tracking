@@ -81,7 +81,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
     setIsSubmitting(true);
 
     const boat = boats.find(b => b.id === formData.boatId);
-    const autoConfirm = isAdmin || (boat && isAnyBootswart && boat.bootswart === currentUser.id);
+    const autoConfirm = isAdmin || (boat && isAnyBootswart && (boat.bootswart === currentUser.id || boat.bootswart2 === currentUser.id));
 
     try {
       if (editAppointment) {
@@ -151,8 +151,8 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
       </Box>
       <DialogContent>
         <Box sx={{ py: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <Alert severity={isAdmin || (boats.find(b => b.id === formData.boatId)?.bootswart === currentUser?.id) ? 'success' : 'info'}>
-            {isAdmin || (boats.find(b => b.id === formData.boatId)?.bootswart === currentUser?.id)
+          <Alert severity={isAdmin || (boats.find(b => b.id === formData.boatId)?.bootswart === currentUser?.id || boats.find(b => b.id === formData.boatId)?.bootswart2 === currentUser?.id) ? 'success' : 'info'}>
+            {isAdmin || (boats.find(b => b.id === formData.boatId)?.bootswart === currentUser?.id || boats.find(b => b.id === formData.boatId)?.bootswart2 === currentUser?.id)
               ? 'Dieser Eintrag wird direkt bestätigt.'
               : 'Dieser Eintrag wird gespeichert und im Bereich Arbeitsstunden als ausstehend angezeigt, bis er bestätigt wurde.'}
           </Alert>

@@ -37,6 +37,7 @@ export interface Boat {
   name: string;
   description?: string;
   bootswart?: string; // User ID of Bootswart
+  bootswart2?: string; // User ID of second Bootswart
   requiresApproval: boolean; // Whether reservations need bootswart approval
   blocked: boolean; // Whether the boat is currently blocked
   color: string; // CSS color value
