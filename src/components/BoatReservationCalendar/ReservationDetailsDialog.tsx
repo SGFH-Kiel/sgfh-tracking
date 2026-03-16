@@ -28,6 +28,7 @@ import { BoatReservation, Boat } from '../../types/models';
 import { useOverlappingReservations } from '../../hooks/useOverlappingReservations';
 import { useSnackbar } from 'notistack';
 import { syncPublicReservationFeed, deletePublicReservationFeed } from '../../domain/reservationSync';
+import { writeActivityLog } from '../../domain/activityLog';
 import { CopyReservationSeriesDialog } from './CopyReservationSeriesDialog';
 import { useMemberReservationEligibility } from '../../hooks/memberHooks';
 
@@ -109,6 +110,14 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
         updatedAt: new Date(),
       });
       await deletePublicReservationFeed(database, reservation.id);
+      await writeActivityLog(database, {
+        type: 'reservation.status_changed',
+        entityId: reservation.id,
+        entityType: 'reservation',
+        actorId: currentUser.id,
+        actorName: currentUser.displayName,
+        details: { title: reservation.title, previousStatus: reservation.status, newStatus: 'cancelled' },
+      });
       onUpdate();
       onClose();
     } catch (error) {
@@ -138,6 +147,16 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
         status: newStatus,
         updatedAt: new Date(),
       }, boat ? [boat] : []);
+      if (currentUser) {
+        await writeActivityLog(database, {
+          type: 'reservation.status_changed',
+          entityId: reservation.id,
+          entityType: 'reservation',
+          actorId: currentUser.id,
+          actorName: currentUser.displayName,
+          details: { title: reservation.title, previousStatus: reservation.status, newStatus },
+        });
+      }
       onUpdate();
       onClose();
     } catch (error) {
@@ -198,6 +217,16 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
         publicDetails: resolvedPublicDetails,
         updatedAt: new Date(),
       }, boat ? [boat] : []);
+      if (currentUser) {
+        await writeActivityLog(database, {
+          type: 'reservation.status_changed',
+          entityId: reservation.id,
+          entityType: 'reservation',
+          actorId: currentUser.id,
+          actorName: currentUser.displayName,
+          details: { title: editedData.title, action: 'updated' },
+        });
+      }
       onUpdate();
       setIsEditing(false);
       enqueueSnackbar('Reservierung wurde aktualisiert', { variant: 'success' });
@@ -229,6 +258,16 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
         status: nextStatus,
         updatedAt: new Date(),
       }, boat ? [boat] : []);
+      if (currentUser) {
+        await writeActivityLog(database, {
+          type: 'reservation.status_changed',
+          entityId: reservation.id,
+          entityType: 'reservation',
+          actorId: currentUser.id,
+          actorName: currentUser.displayName,
+          details: { title: reservation.title, previousStatus: 'draft', newStatus: nextStatus },
+        });
+      }
       enqueueSnackbar('Vormerkung wurde finalisiert.', { variant: 'success' });
       onUpdate();
     } catch (error) {

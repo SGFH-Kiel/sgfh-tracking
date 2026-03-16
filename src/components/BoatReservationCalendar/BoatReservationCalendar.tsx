@@ -5,6 +5,7 @@ import {
   Paper,
   Box,
   Chip,
+  Tooltip,
 } from '@mui/material';
 import { Calendar, dayjsLocalizer } from 'react-big-calendar';
 import dayjs from 'dayjs'
@@ -12,21 +13,31 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useApp } from '../../contexts/AppContext';
 import { BoatReservation, CalendarView } from '../../types/models';
 import { syncPublicReservationFeed } from '../../domain/reservationSync';
+import { writeActivityLog } from '../../domain/activityLog';
 import { getContrastColor } from '../../utils/colors';
 import { ReservationDialog } from './ReservationDialog';
 import { ReservationDetailsDialog } from './ReservationDetailsDialog';
+import BlockIcon from '@mui/icons-material/Block';
 
 const localizer = dayjsLocalizer(dayjs);
 
 export const BoatReservationCalendar: React.FC = () => {
-  const { database, currentUser, boats, systemConfig } = useApp();
+  const { database, currentUser, boats, systemConfig, isAdmin, isSuperAdmin, reloadCurrentUser } = useApp();
   const { canReserve, missingRequirements } = useMemberReservationEligibility();
-  const [reservations, setReservations] = useState<BoatReservation[]>([]);
+  const [allReservations, setAllReservations] = useState<BoatReservation[]>([]);
   const [selectedReservation, setSelectedReservation] = useState<BoatReservation | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isReservationDialogOpen, setIsReservationDialogOpen] = useState(false);
   const [displayDate, setDisplayDate] = useState<Date>(new Date());
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
+  const [togglingCancelled, setTogglingCancelled] = useState(false);
+
+  const isAdminOrSuperAdmin = isAdmin || isSuperAdmin;
+  const showCancelled = Boolean(isAdminOrSuperAdmin && currentUser?.preferences?.showCancelledReservations);
+
+  const reservations = showCancelled
+    ? allReservations
+    : allReservations.filter((r) => r.status !== 'cancelled');
 
   const defaultView: CalendarView =
     currentUser?.preferences?.calendarDefaults?.vormerkbuch ??
@@ -45,11 +56,31 @@ export const BoatReservationCalendar: React.FC = () => {
   const fetchData = useCallback(async () => {
     try {
       const fetchedReservations = await database.getDocuments<BoatReservation>('boatReservations');
-      setReservations(fetchedReservations);
+      setAllReservations(fetchedReservations);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
   }, [database]);
+
+  const handleToggleCancelled = useCallback(async () => {
+    if (!currentUser || togglingCancelled) return;
+    setTogglingCancelled(true);
+    try {
+      const newValue = !showCancelled;
+      await database.updateDocument('users', currentUser.id, {
+        preferences: {
+          ...currentUser.preferences,
+          showCancelledReservations: newValue,
+        },
+        updatedAt: new Date(),
+      });
+      await reloadCurrentUser();
+    } catch (error) {
+      console.error('Error saving calendar preference:', error);
+    } finally {
+      setTogglingCancelled(false);
+    }
+  }, [currentUser, database, showCancelled, togglingCancelled, reloadCurrentUser]);
 
   useEffect(() => {
     fetchData();
@@ -102,6 +133,7 @@ export const BoatReservationCalendar: React.FC = () => {
           px: { xs: 1, sm: 0 },
           pb: 1,
           overflowX: 'auto',
+          alignItems: 'center',
           '&::-webkit-scrollbar': {
             height: 6,
           },
@@ -137,6 +169,20 @@ export const BoatReservationCalendar: React.FC = () => {
             {boat.name}
           </Box>
         ))}
+        {isAdminOrSuperAdmin && (
+          <Tooltip title={showCancelled ? 'Stornierte Reservierungen ausblenden' : 'Stornierte Reservierungen anzeigen'}>
+            <Chip
+              icon={<BlockIcon />}
+              label="Stornierte"
+              size="small"
+              variant={showCancelled ? 'filled' : 'outlined'}
+              color={showCancelled ? 'default' : 'default'}
+              onClick={handleToggleCancelled}
+              disabled={togglingCancelled}
+              sx={{ ml: 'auto', opacity: showCancelled ? 1 : 0.6 }}
+            />
+          </Tooltip>
+        )}
       </Box>
 
       <Box
@@ -222,6 +268,14 @@ export const BoatReservationCalendar: React.FC = () => {
               };
               const newId = await database.addDocument('boatReservations', copyWithSnapshot);
               await syncPublicReservationFeed(database, { ...copyWithSnapshot, id: newId }, boats);
+              await writeActivityLog(database, {
+                type: 'reservation.created',
+                entityId: newId,
+                entityType: 'reservation',
+                actorId: currentUser!.id,
+                actorName: currentUser!.displayName,
+                details: { title: copyWithSnapshot.title, status: copyWithSnapshot.status, seriesCopy: true },
+              });
             }));
             await fetchData();
           }}

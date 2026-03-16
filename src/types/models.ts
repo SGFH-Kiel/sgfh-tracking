@@ -14,6 +14,35 @@ export enum UserRole {
 
 export interface UserPreferences {
   calendarDefaults?: Partial<CalendarDefaults>;
+  showCancelledReservations?: boolean;
+}
+
+export type ActivityEntityType = 'reservation' | 'workHour' | 'boat' | 'member';
+
+export type ActivityType =
+  | 'reservation.created'
+  | 'reservation.status_changed'
+  | 'reservation.deleted'
+  | 'workHour.created'
+  | 'workHour.updated'
+  | 'workHour.deleted'
+  | 'boat.created'
+  | 'boat.updated'
+  | 'boat.deleted'
+  | 'member.created'
+  | 'member.updated'
+  | 'member.deactivated'
+  | 'member.deleted';
+
+export interface ActivityLogEntry {
+  id: string;
+  type: ActivityType;
+  entityId: string;
+  entityType: ActivityEntityType;
+  actorId: string;
+  actorName: string;
+  timestamp: Date;
+  details: Record<string, unknown>;
 }
 
 export interface User {

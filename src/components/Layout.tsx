@@ -24,6 +24,7 @@ import DirectionsBoatIcon from '@mui/icons-material/DirectionsBoat';
 import GroupIcon from '@mui/icons-material/Group';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import { useApp } from '../contexts/AppContext';
 import { usePageTitle } from '../contexts/PageTitleContext';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
@@ -33,6 +34,7 @@ import { BoatList } from './Boats/BoatList';
 import { MemberList } from './Members/MemberList';
 import { WorkHoursTracker } from './Members/WorkHoursTracker';
 import { SystemConfig } from './Admin/SystemConfig';
+import { ActivityTrackingView } from './Admin/ActivityTrackingView';
 import { Handyman } from '@mui/icons-material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { UserGuide } from './Onboarding/UserGuide';
@@ -64,6 +66,7 @@ export const Layout: React.FC = () => {
     ...(isAdmin ? [
       { text: 'Bootsverwaltung', icon: <DirectionsBoatIcon />, path: '/boats' },
       { text: 'Mitgliederverwaltung', icon: <GroupIcon />, path: '/members' },
+      { text: 'Aktivitätsverfolgung', icon: <TrackChangesIcon />, path: '/tracking' },
     ] : []),
     ...(isSuperAdmin ? [
       { text: 'Systemeinstellungen', icon: <SettingsIcon />, path: '/settings' },
@@ -255,6 +258,7 @@ export const Layout: React.FC = () => {
               <>
                 <Route path="/boats" element={<BoatList />} />
                 <Route path="/members" element={<MemberList />} />
+                <Route path="/tracking" element={<ActivityTrackingView />} />
               </>
             )}
             {isSuperAdmin && (

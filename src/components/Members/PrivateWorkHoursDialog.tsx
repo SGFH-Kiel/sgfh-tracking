@@ -18,6 +18,7 @@ import { DateTimePicker } from '@mui/x-date-pickers';
 import dayjs, { Dayjs } from 'dayjs';
 import { WorkAppointment } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
+import { writeActivityLog } from '../../domain/activityLog';
 import { useSnackbar } from 'notistack';
 
 interface PrivateWorkHoursDialogProps {
@@ -99,6 +100,14 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
           participants: updatedParticipants,
           updatedAt: new Date(),
         });
+        await writeActivityLog(database, {
+          type: 'workHour.updated',
+          entityId: editAppointment.id,
+          entityType: 'workHour',
+          actorId: currentUser.id,
+          actorName: currentUser.displayName,
+          details: { title: formData.title || editAppointment.title },
+        });
         enqueueSnackbar('Arbeitsstunden aktualisiert.', { variant: 'success' });
       } else {
         const newAppointment: Omit<WorkAppointment, 'id'> = {
@@ -124,7 +133,15 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
           createdAt: new Date(),
           updatedAt: new Date(),
         };
-        await database.addDocument('workAppointments', newAppointment);
+        const newId = await database.addDocument('workAppointments', newAppointment);
+        await writeActivityLog(database, {
+          type: 'workHour.created',
+          entityId: newId,
+          entityType: 'workHour',
+          actorId: currentUser.id,
+          actorName: currentUser.displayName,
+          details: { title: newAppointment.title, private: true, autoConfirmed: autoConfirm },
+        });
         enqueueSnackbar(
           autoConfirm
             ? 'Arbeitsstunden gespeichert und direkt angerechnet.'

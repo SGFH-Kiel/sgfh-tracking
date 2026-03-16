@@ -41,6 +41,7 @@ import { BoatReservation, User, UserRole } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
 import { useCalculateWorkHours } from '../../hooks/memberHooks';
 import { deletePublicReservationFeed } from '../../domain/reservationSync';
+import { writeActivityLog } from '../../domain/activityLog';
 import humanizeDuration from 'humanize-duration';
 
 const humanizer = humanizeDuration.humanizer({ language: 'de', round: true, units: ['h'] });
@@ -104,6 +105,16 @@ export const MemberList: React.FC = () => {
           skipHours: formData.skipHours,
           updatedAt: new Date(),
         });
+        if (currentUser) {
+          await writeActivityLog(database, {
+            type: 'member.updated',
+            entityId: editingMember.id,
+            entityType: 'member',
+            actorId: currentUser.id,
+            actorName: currentUser.displayName,
+            details: { displayName: formData.displayName, roles: formData.roles.join(','), feesPaid: formData.feesPaid },
+          });
+        }
         reloadCurrentUser();
       } else {
         // Create new user in both Auth and Firestore
@@ -117,6 +128,17 @@ export const MemberList: React.FC = () => {
         await database.updateDocument<User>('users', userId, {
           feesPaid: formData.feesPaid,
         });
+
+        if (currentUser) {
+          await writeActivityLog(database, {
+            type: 'member.created',
+            entityId: userId,
+            entityType: 'member',
+            actorId: currentUser.id,
+            actorName: currentUser.displayName,
+            details: { displayName: formData.displayName, email: formData.email, roles: formData.roles.join(',') },
+          });
+        }
 
         // Show success message with email link
         enqueueSnackbar(
@@ -166,6 +188,16 @@ export const MemberList: React.FC = () => {
       const reservations = await database.getDocuments<BoatReservation>('boatReservations', [{ field: 'userId', operator: 'eq', value: memberToDeactivate.id }]);
       await Promise.all(reservations.map(r => deletePublicReservationFeed(database, r.id)));
       await database.deleteDocuments('boatReservations', reservations.map(r => r.id));
+      if (currentUser) {
+        await writeActivityLog(database, {
+          type: 'member.deactivated',
+          entityId: memberToDeactivate.id,
+          entityType: 'member',
+          actorId: currentUser.id,
+          actorName: currentUser.displayName,
+          details: { displayName: memberToDeactivate.displayName },
+        });
+      }
       reload();
       enqueueSnackbar('Mitglied wurde deaktiviert.', { variant: 'success' });
     } catch (error) {
@@ -224,6 +256,16 @@ export const MemberList: React.FC = () => {
       const reservations = await database.getDocuments<BoatReservation>('boatReservations', [{ field: 'userId', operator: 'eq', value: memberToDelete.id }]);
       await Promise.all(reservations.map(r => deletePublicReservationFeed(database, r.id)));
       await database.deleteDocuments('boatReservations', reservations.map(r => r.id));
+      if (currentUser) {
+        await writeActivityLog(database, {
+          type: 'member.deleted',
+          entityId: memberToDelete.id,
+          entityType: 'member',
+          actorId: currentUser.id,
+          actorName: currentUser.displayName,
+          details: { displayName: memberToDelete.displayName },
+        });
+      }
       reload();
       enqueueSnackbar('Mitglied wurde gelöscht.', { variant: 'success' });
     } catch (error) {

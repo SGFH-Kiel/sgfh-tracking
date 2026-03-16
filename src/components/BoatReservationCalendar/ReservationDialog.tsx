@@ -25,6 +25,7 @@ import { useApp } from '../../contexts/AppContext';
 import { BoatReservation } from '../../types/models';
 import { useOverlappingReservations } from '../../hooks/useOverlappingReservations';
 import { syncPublicReservationFeed } from '../../domain/reservationSync';
+import { writeActivityLog } from '../../domain/activityLog';
 import { useMemberReservationEligibility } from '../../hooks/memberHooks';
 
 interface ReservationDialogProps {
@@ -131,6 +132,14 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
         ...reservation,
         id: reservationId,
       }, boats);
+      await writeActivityLog(database, {
+        type: 'reservation.created',
+        entityId: reservationId,
+        entityType: 'reservation',
+        actorId: currentUser.id,
+        actorName: currentUser.displayName,
+        details: { title: reservation.title, status: finalStatus, boatId: formData.boatId },
+      });
 
       if (warningConflicts.length > 0) {
         enqueueSnackbar('Es gibt bereits unverbindliche Vormerkungen in diesem Zeitraum. Ihre Reservierung wurde trotzdem gespeichert.', { variant: 'warning' });

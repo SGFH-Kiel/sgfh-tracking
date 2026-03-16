@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/de';
 import { useApp } from '../../contexts/AppContext';
 import { WorkAppointment, CalendarView } from '../../types/models';
+import { writeActivityLog } from '../../domain/activityLog';
 import { AppointmentDialog } from './AppointmentDialog';
 import { AppointmentDetailsDialog } from './AppointmentDetailsDialog';
 import { Calendar, dayjsLocalizer } from 'react-big-calendar';
@@ -120,11 +121,21 @@ export const WorkCalendar: React.FC = () => {
           open={createDialogOpen}
           onClose={() => setCreateDialogOpen(false)}
           onSave={async (appointment) => {
-            await database.addDocument('workAppointments', {
+            const newId = await database.addDocument('workAppointments', {
               ...appointment,
               createdAt: new Date(),
               updatedAt: new Date(),
             });
+            if (currentUser) {
+              await writeActivityLog(database, {
+                type: 'workHour.created',
+                entityId: newId,
+                entityType: 'workHour',
+                actorId: currentUser.id,
+                actorName: currentUser.displayName,
+                details: { title: appointment.title ?? '' },
+              });
+            }
             setCreateDialogOpen(false);
             await refreshAppointments();
           }}
@@ -143,11 +154,33 @@ export const WorkCalendar: React.FC = () => {
           }}
           onDelete={async () => {
             await database.deleteDocument('workAppointments', selectedAppointment.id);
+            if (currentUser) {
+              await writeActivityLog(database, {
+                type: 'workHour.deleted',
+                entityId: selectedAppointment.id,
+                entityType: 'workHour',
+                actorId: currentUser.id,
+                actorName: currentUser.displayName,
+                details: { title: selectedAppointment.title },
+              });
+            }
             setDetailsDialogOpen(false);
             await refreshAppointments();
           }}
           onCopy={async (copies) => {
-            await Promise.all(copies.map(copy => database.addDocument('workAppointments', copy)));
+            await Promise.all(copies.map(async (copy) => {
+              const newId = await database.addDocument('workAppointments', copy);
+              if (currentUser) {
+                await writeActivityLog(database, {
+                  type: 'workHour.created',
+                  entityId: newId,
+                  entityType: 'workHour',
+                  actorId: currentUser.id,
+                  actorName: currentUser.displayName,
+                  details: { title: copy.title, seriesCopy: true },
+                });
+              }
+            }));
             await refreshAppointments();
           }}
         />

@@ -34,6 +34,7 @@ import {
 } from '@mui/icons-material';
 import { Boat, User } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
+import { writeActivityLog } from '../../domain/activityLog';
 import { getRandomBoatColor } from '../../utils/colors';
 
 export const BoatList: React.FC = () => {
@@ -117,8 +118,18 @@ export const BoatList: React.FC = () => {
           color: formData.color,
           updatedAt: new Date(),
         });
+        if (currentUser) {
+          await writeActivityLog(database, {
+            type: 'boat.updated',
+            entityId: editingBoat.id,
+            entityType: 'boat',
+            actorId: currentUser.id,
+            actorName: currentUser.displayName,
+            details: { name: formData.name, blocked: formData.blocked },
+          });
+        }
       } else {
-        await database.addDocument('boats', {
+        const newId = await database.addDocument('boats', {
           name: formData.name,
           description: formData.description,
           bootswart: formData.bootswart,
@@ -129,6 +140,16 @@ export const BoatList: React.FC = () => {
           createdAt: new Date(),
           updatedAt: new Date(),
         });
+        if (currentUser) {
+          await writeActivityLog(database, {
+            type: 'boat.created',
+            entityId: newId,
+            entityType: 'boat',
+            actorId: currentUser.id,
+            actorName: currentUser.displayName,
+            details: { name: formData.name },
+          });
+        }
       }
       handleClose();
       reloadBoats();
@@ -138,9 +159,20 @@ export const BoatList: React.FC = () => {
   };
 
   const handleDelete = async (boatId: string) => {
+    const boat = boats.find((b) => b.id === boatId);
     if (window.confirm('Sind Sie sicher, dass Sie dieses Boot löschen möchten?')) {
       try {
         await database.deleteDocument('boats', boatId);
+        if (currentUser) {
+          await writeActivityLog(database, {
+            type: 'boat.deleted',
+            entityId: boatId,
+            entityType: 'boat',
+            actorId: currentUser.id,
+            actorName: currentUser.displayName,
+            details: { name: boat?.name ?? boatId },
+          });
+        }
         reloadBoats();
       } catch (error) {
         console.error('Error deleting boat:', error);

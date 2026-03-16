@@ -212,5 +212,11 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isSuperAdmin();
     }
+
+    match /activityLog/{entryId} {
+      allow read: if isAdmin();
+      allow create: if isMember();
+      allow update, delete: if false;
+    }
   }
 }
