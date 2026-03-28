@@ -570,4 +570,250 @@ describe('firestore rules', () => {
     const db = testEnv.authenticatedContext('bootswart2-1').firestore();
     await assertSucceeds(deleteDoc(doc(db, 'workAppointments', 'wa-bw2-delete')));
   });
+
+  // --- private work hours self-confirmation tests ---
+
+  it('allows member to create a private work appointment for themselves', async () => {
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(setDoc(doc(db, 'workAppointments', 'wa-private-1'), {
+      title: 'Private Arbeit',
+      description: 'Selbst erledigt',
+      private: true,
+      createdByUserId: 'member-1',
+      createdByUserName: 'Mitglied',
+      participants: [{
+        userId: 'member-1',
+        userName: 'Mitglied',
+        status: 'pending',
+        startTime: new Date('2025-06-01T09:00:00Z'),
+        endTime: new Date('2025-06-01T11:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }],
+      supplies: [],
+      startTime: new Date('2025-06-01T09:00:00Z'),
+      endTime: new Date('2025-06-01T11:00:00Z'),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('denies member from self-confirming their own private work appointment via updateDoc', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'workAppointments', 'wa-private-selfconfirm'), {
+        title: 'Private Arbeit',
+        description: '',
+        private: true,
+        createdByUserId: 'member-1',
+        createdByUserName: 'Mitglied',
+        participants: [{
+          userId: 'member-1',
+          userName: 'Mitglied',
+          status: 'pending',
+          startTime: new Date('2025-06-02T09:00:00Z'),
+          endTime: new Date('2025-06-02T11:00:00Z'),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }],
+        supplies: [],
+        startTime: new Date('2025-06-02T09:00:00Z'),
+        endTime: new Date('2025-06-02T11:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-private-selfconfirm'), {
+      participants: [{
+        userId: 'member-1',
+        userName: 'Mitglied',
+        status: 'confirmed',
+        startTime: new Date('2025-06-02T09:00:00Z'),
+        endTime: new Date('2025-06-02T11:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }],
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows member to edit their own unconfirmed private appointment without changing status', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'workAppointments', 'wa-private-edit'), {
+        title: 'Private Arbeit',
+        description: '',
+        private: true,
+        createdByUserId: 'member-1',
+        createdByUserName: 'Mitglied',
+        participants: [{
+          userId: 'member-1',
+          userName: 'Mitglied',
+          status: 'pending',
+          startTime: new Date('2025-06-03T09:00:00Z'),
+          endTime: new Date('2025-06-03T11:00:00Z'),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }],
+        supplies: [],
+        startTime: new Date('2025-06-03T09:00:00Z'),
+        endTime: new Date('2025-06-03T11:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'workAppointments', 'wa-private-edit'), {
+      title: 'Geändert',
+      description: 'Neue Beschreibung',
+      startTime: new Date('2025-06-03T10:00:00Z'),
+      endTime: new Date('2025-06-03T12:00:00Z'),
+      participants: [{
+        userId: 'member-1',
+        userName: 'Mitglied',
+        status: 'pending',
+        startTime: new Date('2025-06-03T10:00:00Z'),
+        endTime: new Date('2025-06-03T12:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }],
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('denies member from editing a private appointment that is already confirmed', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'workAppointments', 'wa-private-locked'), {
+        title: 'Bestätigte Arbeit',
+        description: '',
+        private: true,
+        createdByUserId: 'member-1',
+        createdByUserName: 'Mitglied',
+        participants: [{
+          userId: 'member-1',
+          userName: 'Mitglied',
+          status: 'confirmed',
+          startTime: new Date('2025-06-04T09:00:00Z'),
+          endTime: new Date('2025-06-04T11:00:00Z'),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }],
+        supplies: [],
+        startTime: new Date('2025-06-04T09:00:00Z'),
+        endTime: new Date('2025-06-04T11:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-private-locked'), {
+      title: 'Geändert obwohl bestätigt',
+      participants: [{
+        userId: 'member-1',
+        userName: 'Mitglied',
+        status: 'confirmed',
+        startTime: new Date('2025-06-04T09:00:00Z'),
+        endTime: new Date('2025-06-04T11:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }],
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows admin to confirm a member on a private work appointment', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'workAppointments', 'wa-private-adminconfirm'), {
+        title: 'Private Arbeit',
+        description: '',
+        private: true,
+        createdByUserId: 'member-1',
+        createdByUserName: 'Mitglied',
+        participants: [{
+          userId: 'member-1',
+          userName: 'Mitglied',
+          status: 'pending',
+          startTime: new Date('2025-06-05T09:00:00Z'),
+          endTime: new Date('2025-06-05T11:00:00Z'),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }],
+        supplies: [],
+        startTime: new Date('2025-06-05T09:00:00Z'),
+        endTime: new Date('2025-06-05T11:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('admin-1').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'workAppointments', 'wa-private-adminconfirm'), {
+      participants: [{
+        userId: 'member-1',
+        userName: 'Mitglied',
+        status: 'confirmed',
+        startTime: new Date('2025-06-05T09:00:00Z'),
+        endTime: new Date('2025-06-05T11:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }],
+      updatedAt: new Date(),
+    }));
+  });
+
+  it('allows member to join a public work appointment (add self as pending)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'workAppointments', 'wa-public-join'), {
+        title: 'Öffentliche Arbeit',
+        description: '',
+        boatId: 'boat-1',
+        participants: [],
+        supplies: [],
+        startTime: new Date('2025-06-06T09:00:00Z'),
+        endTime: new Date('2025-06-06T13:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertSucceeds(updateDoc(doc(db, 'workAppointments', 'wa-public-join'), {
+      participants: [{
+        userId: 'member-1',
+        userName: 'Mitglied',
+        status: 'pending',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }],
+    }));
+  });
+
+  it('denies member from self-confirming on a public work appointment via updateDoc', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'workAppointments', 'wa-public-selfconfirm'), {
+        title: 'Öffentliche Arbeit',
+        description: '',
+        boatId: 'boat-1',
+        participants: [{
+          userId: 'member-1',
+          userName: 'Mitglied',
+          status: 'pending',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }],
+        supplies: [],
+        startTime: new Date('2025-06-07T09:00:00Z'),
+        endTime: new Date('2025-06-07T13:00:00Z'),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    const db = testEnv.authenticatedContext('member-1').firestore();
+    await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-public-selfconfirm'), {
+      participants: [{
+        userId: 'member-1',
+        userName: 'Mitglied',
+        status: 'confirmed',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }],
+    }));
+  });
 });

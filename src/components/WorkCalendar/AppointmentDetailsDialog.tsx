@@ -404,7 +404,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                           </Box>
                         )}
                         {/* show admin action buttons */}
-                        {canEdit && participant.status === 'pending' && (
+                        {(isAdmin || isAppointmentBootswart) && participant.status === 'pending' && (
                           <Box sx={{ ml: 1 }}>
                             <IconButton
                               onClick={() => handleUpdateParticipantStatus(participant.userId, 'confirmed')}

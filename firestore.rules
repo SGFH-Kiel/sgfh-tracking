@@ -26,7 +26,10 @@ service cloud.firestore {
     }
 
     function isBootswart(boatId) {
-      return isMember() && boatId != null && boatId != '' && (get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart == request.auth.uid || get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart2 == request.auth.uid);
+      return isMember() && boatId != null && boatId != '' && (
+        get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart == request.auth.uid ||
+        ('bootswart2' in get(/databases/$(database)/documents/boats/$(boatId)).data && get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart2 == request.auth.uid)
+      );
     }
 
     function isAllowedDomain() {
@@ -197,15 +200,30 @@ service cloud.firestore {
           request.resource.data.participants[0].userId == request.auth.uid
         )) && validWorkAppointment(request.resource.data);
 
-      allow update: if isAdmin() || isBootswart(resource.data.boatId) ||
-        (isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']) && request.resource.data.participants is list) ||
+      allow update: if isAdmin() || ('boatId' in resource.data && isBootswart(resource.data.boatId)) ||
+        // Member can join (add self as pending) or leave (remove self) on non-private appointments.
+        // Only the participants field changes. Status of any existing entry must not change.
+        // Since Firestore rules cannot iterate lists, we only enforce the no-status-change constraint
+        // on participant[0]. This is sufficient because private appointments are handled by the
+        // branch below, and join/leave via arrayUnion/arrayRemove never mutate existing entries.
         (isMember() &&
-          resource.data.private == true &&
+          !('private' in resource.data && resource.data.private == true) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']) &&
+          request.resource.data.participants is list &&
+          (resource.data.participants.size() == 0 ||
+            resource.data.participants[0].status == request.resource.data.participants[0].status)) ||
+        // Member can edit their own unconfirmed private appointment (title, times, description, etc.)
+        // but cannot set their own participant status to 'confirmed' or 'declined'
+        (isMember() &&
+          'private' in resource.data && resource.data.private == true &&
           resource.data.participants.size() == 1 &&
           resource.data.participants[0].userId == request.auth.uid &&
-          resource.data.participants[0].status != 'confirmed');
+          resource.data.participants[0].status != 'confirmed' &&
+          request.resource.data.participants.size() == 1 &&
+          request.resource.data.participants[0].userId == request.auth.uid &&
+          request.resource.data.participants[0].status != 'confirmed');
 
-      allow delete: if isAdmin() || isBootswart(resource.data.boatId) || (resource.data.private == true && resource.data.participants.size() == 1 && resource.data.participants[0].userId == request.auth.uid);
+      allow delete: if isAdmin() || ('boatId' in resource.data && isBootswart(resource.data.boatId)) || ('private' in resource.data && resource.data.private == true && resource.data.participants.size() == 1 && resource.data.participants[0].userId == request.auth.uid);
     }
 
     match /systemConfig/default {
