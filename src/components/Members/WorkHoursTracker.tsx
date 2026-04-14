@@ -96,6 +96,11 @@ export const WorkHoursTracker: React.FC = () => {
   const { userWorkHours, loading, error, reload: refreshAppointments } = useCalculateWorkHours();
   const { setBreadcrumbs } = usePageTitle();
 
+  const myBoatIds = useMemo(
+    () => new Set(boats.filter(b => b.bootswart === currentUser?.id || b.bootswart2 === currentUser?.id).map(b => b.id)),
+    [boats, currentUser?.id]
+  );
+
   const handleExport = useCallback(() => {
     const wb = utils.book_new();
 
@@ -523,22 +528,31 @@ export const WorkHoursTracker: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {userWorkHours.map(({ user, completedDuration, upcomingDuration, appointments: {upcoming}, status }) => {
+              {userWorkHours
+                .filter(({ appointments: { completed, upcoming, declined } }) => {
+                  if (isAdmin) return true;
+                  const allApts = [...completed, ...upcoming, ...declined];
+                  return allApts.some(apt => apt.boatId && myBoatIds.has(apt.boatId));
+                })
+                .map(({ user, completedDuration, upcomingDuration, appointments: {upcoming}, status }) => {
                 const remaining = Math.max(
                   0,
                   required - completedDuration - upcomingDuration
                 );
                 const progress = (completedDuration / required) * 100;
-                const hasPending = upcoming.some(apt => apt.participants.some(p => p.status === 'pending'));
+                const hasPending = upcoming
+                  .filter(apt => isAdmin || (apt.boatId && myBoatIds.has(apt.boatId)))
+                  .some(apt => apt.participants.some(p => p.status === 'pending'));
 
                 return (
                   <React.Fragment key={user.id}>
-                    <TableRow>
+                    <TableRow
+                          onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}
+                          sx={{ cursor: 'pointer' }}>
                       <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         <IconButton
                           size="small"
-                          onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}
                         >
                           <ExpandMoreIcon sx={{ transform: expandedUser === user.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                         </IconButton>
@@ -598,6 +612,7 @@ export const WorkHoursTracker: React.FC = () => {
                                   {userWorkHours
                                     .find(h => h.user.id === user.id)?.appointments?.completed
                                     .concat(userWorkHours.find(h => h.user.id === user.id)?.appointments?.upcoming || [])
+                                    .filter(apt => isAdmin || (apt.boatId && myBoatIds.has(apt.boatId)))
                                     .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
                                     .map(appointment => {
                                       const up = appointment.participants.find(p => p.userId === user.id)!;
