@@ -6,6 +6,7 @@ import {
   Button,
   TextField,
   FormControl,
+  FormHelperText,
   InputLabel,
   Select,
   MenuItem,
@@ -54,6 +55,11 @@ export const AppointmentDialog: React.FC<AppointmentDialogProps> = ({
   });
   const [newSupply, setNewSupply] = useState('');
   const { currentUser, boats, isAdmin } = useApp();
+  const availableBoats = boats.filter(
+    (boat) => isAdmin || boat.bootswart === currentUser?.id || boat.bootswart2 === currentUser?.id
+  );
+  const requiresBoatSelection = !isAdmin;
+  const cannotSubmitWithoutBoat = requiresBoatSelection && !formData.boatId;
 
   useEffect(() => {
     if (appointment) {
@@ -79,6 +85,10 @@ export const AppointmentDialog: React.FC<AppointmentDialogProps> = ({
   }, [appointment, startTime, endTime]);
 
   const handleSubmit = async () => {
+    if (cannotSubmitWithoutBoat) {
+      return;
+    }
+
     const appointmentData: Partial<WorkAppointment> = {
       title: formData.title,
       description: formData.description,
@@ -175,13 +185,24 @@ export const AppointmentDialog: React.FC<AppointmentDialogProps> = ({
             onChange={(e) => setFormData({ ...formData, boatId: e.target.value })}
             label="Boot"
           >
-            <MenuItem value="">Kein Boot</MenuItem>
-            {boats.filter(b=> isAdmin || b.bootswart === currentUser?.id).map((boat) => (
+            {isAdmin ? (
+              <MenuItem value="">Kein Boot</MenuItem>
+            ) : (
+              <MenuItem value="" disabled>
+                Boot auswählen
+              </MenuItem>
+            )}
+            {availableBoats.map((boat) => (
               <MenuItem key={boat.id} value={boat.id}>
                 {boat.name}
                 </MenuItem>
             ))}
           </Select>
+          {requiresBoatSelection && (
+            <FormHelperText>
+              Öffentliche Termine ohne Bootzuordnung können nur Admins anlegen.
+            </FormHelperText>
+          )}
         </FormControl>
         <TextField
           label="Maximale Teilnehmer"
@@ -224,6 +245,7 @@ export const AppointmentDialog: React.FC<AppointmentDialogProps> = ({
             variant="contained"
             color="primary"
             startIcon={<SaveIcon />}
+            disabled={cannotSubmitWithoutBoat}
           >
             {appointment ? 'Speichern' : 'Erstellen'}
           </Button>

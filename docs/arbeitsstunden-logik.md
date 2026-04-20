@@ -33,19 +33,40 @@ Wenn sie nicht automatisch bestätigt werden, bleiben sie sichtbar als `Unbestä
 
 Bearbeiten und Löschen von Arbeitsterminen (`workAppointments`) ist rollenabhängig.
 
-### Wer darf bearbeiten?
+## Anlegen von Arbeitsterminen
 
-| Rolle / Bedingung | Keine bestätigten Teilnehmer | Mit bestätigten Teilnehmern + in der Vergangenheit |
-|---|---|---|
-| **Superadmin** | ✅ | ✅ |
-| **Bootswart des zugewiesenen Boots** | ✅ | 🔒 gesperrt |
-| **Ersteller (öffentlicher Termin)** | ✅ | 🔒 gesperrt |
-| **Ersteller (privater Termin)** | ✅ | 🔒 gesperrt |
-| **Alle anderen** | ❌ | ❌ |
+- **Öffentliche Termine ohne Bootzuordnung** können nur von **Admins / Superadmins** angelegt werden.
+- **Bootswarte** können weiterhin öffentliche Termine für ihre zugewiesenen Boote anlegen.
+- **Private Arbeitsstunden** bleiben unverändert und werden weiterhin separat als private Eigeneinträge erfasst.
 
-### Sperrbedingung (öffentliche Termine)
+### Termin-Metadaten
 
-Ein öffentlicher Termin gilt als **gesperrt** wenn beide Bedingungen zutreffen:
+Für Titel, Beschreibung, Terminzeit, Material, Löschen und Serienkopie gilt weiterhin eine Sperre für bestätigte öffentliche Termine in der Vergangenheit.
+
+| Rolle / Bedingung | Öffentlicher Termin ohne bestätigte Vergangenheitsbuchung | Öffentlicher Termin in der Vergangenheit mit bestätigten Teilnehmern | Privater Eigeneintrag |
+|---|---|---|---|
+| **Superadmin** | ✅ | ✅ | ✅ |
+| **Admin** | ✅ | 🔒 gesperrt | ❌ |
+| **Bootswart des zugewiesenen Boots** | ✅ | 🔒 gesperrt | ❌ |
+| **Ersteller (privater Termin)** | ❌ | ❌ | ✅ bis zur ersten Bestätigung |
+| **Alle anderen** | ❌ | ❌ | ❌ |
+
+### Teilnehmerverwaltung bei öffentlichen Terminen
+
+Für die Teilnehmerliste gelten bewusst andere Regeln als für die Termin-Metadaten:
+
+- **Admin, Superadmin und zuständiger Bootswart** dürfen Teilnehmer auch nach Terminende weiter verwalten.
+- Das umfasst weiterhin:
+  - Teilnehmer bestätigen oder ablehnen
+  - weitere Teilnehmer zu einem vergangenen Termin hinzufügen
+  - sich selbst nachträglich als Teilnehmer eintragen
+  - Teilnehmerzeiten individuell korrigieren
+- Wenn sich der zuständige **Bootswart selbst** zu einem öffentlichen Termin hinzufügt, wird dieser Teilnehmer direkt als `confirmed` angelegt.
+- Die Teilnehmerverwaltung bleibt damit auch **am nächsten Tag** nach einem erledigten Termin möglich.
+
+### Sperrbedingung (öffentliche Termin-Metadaten)
+
+Ein öffentlicher Termin ist für Metadaten-Änderungen gesperrt, wenn beide Bedingungen zutreffen:
 - `appointment.endTime < now` (Termin liegt in der Vergangenheit)
 - mindestens ein Teilnehmer hat `status === 'confirmed'`
 
@@ -53,7 +74,7 @@ Ein öffentlicher Termin gilt als **gesperrt** wenn beide Bedingungen zutreffen:
 
 Ein privater Termin ist für den Ersteller gesperrt, sobald mindestens ein Teilnehmer `status === 'confirmed'` hat (unabhängig davon, ob der Termin in der Vergangenheit liegt).
 
-Die Sperre schützt bereits angerechnete Arbeitsstunden vor nachträglicher Manipulation. Superadmins sind davon ausgenommen und können jederzeit korrigieren.
+Die private Sperre schützt bereits angerechnete Arbeitsstunden vor nachträglicher Manipulation. Superadmins sind davon ausgenommen und können jederzeit korrigieren.
 
 ### Implementierung
 
@@ -61,14 +82,15 @@ Die Logik befindet sich in `src/components/WorkCalendar/AppointmentDetailsDialog
 
 ```ts
 const isAppointmentBootswart = !!appointment.boatId
-  && boats.find(b => b.id === appointment.boatId)?.bootswart === currentUser?.id;
+  && (boats.find(b => b.id === appointment.boatId)?.bootswart === currentUser?.id
+    || boats.find(b => b.id === appointment.boatId)?.bootswart2 === currentUser?.id);
 const isCreator = !!currentUser && appointment.createdByUserId === currentUser.id;
 const isPast = appointment.endTime < new Date();
 const hasConfirmedParticipants = appointment.participants.some(p => p.status === 'confirmed');
-const isLockedForNonSuperAdmin = isPast && hasConfirmedParticipants;
-// Private appointments: editable by creator as long as no participant is confirmed
+const isLockedPublicAppointment = !appointment.private && isPast && hasConfirmedParticipants;
+const canManageParticipants = isSuperAdmin || isAdmin || isAppointmentBootswart;
 const canEditOwnPrivate = !!appointment.private && isCreator && !hasConfirmedParticipants;
-const canEdit = isSuperAdmin || canEditOwnPrivate || (!isLockedForNonSuperAdmin && (isAppointmentBootswart || isCreator));
+const canEdit = isSuperAdmin || canEditOwnPrivate || (canManageParticipants && !isLockedPublicAppointment);
 ```
 
 ### Ersteller-Tracking

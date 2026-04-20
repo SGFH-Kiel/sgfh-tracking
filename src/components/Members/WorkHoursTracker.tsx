@@ -193,13 +193,18 @@ export const WorkHoursTracker: React.FC = () => {
   }, [setPrivateHoursDialogOpen]);
 
   const changeParticipantStatus = useCallback((appointment: WorkAppointment, userId: string, status: 'confirmed' | 'declined') => async () => {
-    const updatedParticipants = appointment.participants.map(p =>
+    const latestAppointment = await database.getDocument<WorkAppointment>('workAppointments', appointment.id);
+    if (!latestAppointment) {
+      return;
+    }
+
+    const updatedParticipants = latestAppointment.participants.map(p =>
       p.userId === userId ? { ...p, status } : p
     );
     await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
       participants: updatedParticipants
     });
-    refreshAppointments();
+    await refreshAppointments();
   }, [database, refreshAppointments]);
   
 
@@ -223,6 +228,27 @@ export const WorkHoursTracker: React.FC = () => {
     accountingEntries: [],
     appointments: { completed: [], upcoming: [], declined: [] }
   }, [userWorkHours, currentUser, systemConfig.workHourThreshold]);
+  const appointmentsById = useMemo(() => {
+    const nextAppointments = new Map<string, WorkAppointment>();
+    userWorkHours.forEach(({ appointments }) => {
+      [...appointments.completed, ...appointments.upcoming, ...appointments.declined].forEach((appointment) => {
+        nextAppointments.set(appointment.id, appointment);
+      });
+    });
+    return nextAppointments;
+  }, [userWorkHours]);
+
+  useEffect(() => {
+    if (!detailAppointment) {
+      return;
+    }
+
+    const latestDetailAppointment = appointmentsById.get(detailAppointment.id);
+    if (latestDetailAppointment && latestDetailAppointment !== detailAppointment) {
+      setDetailAppointment(latestDetailAppointment);
+    }
+  }, [appointmentsById, detailAppointment]);
+
   // hours to duration
   const required = systemConfig.workHourThreshold * 3600000;
   const userAppointments = useMemo(() => {

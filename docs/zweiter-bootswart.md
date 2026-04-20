@@ -31,6 +31,7 @@ Die betroffenen Dateien im Einzelnen:
 |---|---|---|
 | `src/contexts/AppContext.tsx` | `isAnyBootswart` | Globales Flag – bestimmt, ob der Nutzer überhaupt Bootswart-Ansichten sieht |
 | `src/components/Boats/BoatList.tsx` | `isAnyBootswart`, `handleOpen`, Aktionsspalte | Bearbeitungsrechte für Bootsverwaltung |
+| `src/components/WorkCalendar/AppointmentDialog.tsx` | Boot-Auswahl | `bootswart2` kann eigene Boote beim Anlegen/Bearbeiten von Arbeitsterminen auswählen |
 | `src/components/WorkCalendar/AppointmentDetailsDialog.tsx` | `isAppointmentBootswart` | Bearbeiten/Löschen/Bestätigen von Arbeitsterminen im Kalender |
 | `src/components/Members/WorkHoursTracker.tsx` | `isBootswart` | Bestätigen/Ablehnen von Arbeitsstunden in der Mitgliederliste |
 | `src/components/Members/PrivateWorkHoursDialog.tsx` | `autoConfirm` | Direkte Bestätigung beim Eintragen privater Arbeitsstunden |

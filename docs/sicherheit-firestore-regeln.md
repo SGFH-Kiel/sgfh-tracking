@@ -27,6 +27,7 @@
   - nur `pending` und `approved` Reservierungen werden synchronisiert (keine Drafts)
 - `workAppointments`
   - Strukturvalidierung für neue Termine
+  - öffentliche Termine ohne `boatId` bleiben Admins vorbehalten
   - private Selbsteinträge bleiben möglich
   - Ersteller eines privaten Einzeleintrags darf diesen bearbeiten, solange der Teilnehmerstatus noch nicht `confirmed` ist
 

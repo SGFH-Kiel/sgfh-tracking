@@ -27,7 +27,7 @@ import { CalendarIcon, DateTimePicker } from '@mui/x-date-pickers';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/de';
 
-import { WorkAppointment, WorkParticipant } from '../../types/models';
+import { User, WorkAppointment, WorkParticipant } from '../../types/models';
 import { CopyAppointmentSeriesDialog } from './CopyAppointmentSeriesDialog';
 import { useApp } from '../../contexts/AppContext';
 
@@ -55,6 +55,9 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   const [isEditing, setIsEditing] = useState(false);
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
   const [editedData, setEditedData] = useState<Partial<WorkAppointment>>(appointment);
+  const [memberOptions, setMemberOptions] = useState<User[]>([]);
+  const [selectedUserToAdd, setSelectedUserToAdd] = useState<User | null>(null);
+  const [usersLoading, setUsersLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -92,57 +95,160 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   const appointmentBoat = appointment.boatId ? boats.find(b => b.id === appointment.boatId) : undefined;
   const isAppointmentBootswart = !!appointmentBoat && (appointmentBoat.bootswart === currentUser?.id || appointmentBoat.bootswart2 === currentUser?.id);
   const isCreator = !!currentUser && appointment.createdByUserId === currentUser.id;
+  const canManageAppointment = isSuperAdmin || isAdmin || isAppointmentBootswart;
+  const canManageParticipants = canManageAppointment;
   const isPast = appointment.endTime < new Date();
   const hasConfirmedParticipants = appointment.participants.some(p => p.status === 'confirmed');
-  const isLockedForNonSuperAdmin = isPast && hasConfirmedParticipants;
+  const isLockedPublicAppointment = !appointment.private && isPast && hasConfirmedParticipants;
   // Private appointments created by the current user are editable as long as no participant is confirmed yet
   const canEditOwnPrivate = !!appointment.private && isCreator && !hasConfirmedParticipants;
-  const canEdit = isSuperAdmin || canEditOwnPrivate || (!isLockedForNonSuperAdmin && (isAppointmentBootswart || isCreator));
+  const canEdit = isSuperAdmin || canEditOwnPrivate || (canManageAppointment && !isLockedPublicAppointment);
+  const canAddParticipants = !appointment.private && canManageParticipants;
   const isMyPrivateAppointment = appointment.private && appointment.participants.some(p => p.userId === currentUser?.id);
+  const isParticipantLimitReached = Boolean(appointment.maxParticipants && appointment.participants.length >= appointment.maxParticipants);
+  const appointmentScopeLabel = appointment.private
+    ? 'Privater Termin'
+    : appointmentBoat
+      ? `Boot: ${appointmentBoat.name}`
+      : 'Öffentlicher Termin ohne Bootzuordnung';
 
   const isParticipant = appointment.participants.some(
     (p) => p.userId === currentUser?.id
   );
 
+  const selectableUsers = memberOptions
+    .filter((user) => !appointment.participants.some((participant) => participant.userId === user.id))
+    .sort((left, right) => left.displayName.localeCompare(right.displayName, 'de'));
+
+  useEffect(() => {
+    if (!open || !canAddParticipants) {
+      setMemberOptions([]);
+      setSelectedUserToAdd(null);
+      setUsersLoading(false);
+      return;
+    }
+
+    let isActive = true;
+
+    const loadUsers = async () => {
+      setUsersLoading(true);
+      try {
+        const users = await database.getDocuments<User>('users');
+        if (!isActive) {
+          return;
+        }
+        setMemberOptions(users.filter((user) => !user.deactivated));
+      } catch (error) {
+        console.error('Error loading users for appointment participants:', error);
+        if (isActive) {
+          setMemberOptions([]);
+        }
+      } finally {
+        if (isActive) {
+          setUsersLoading(false);
+        }
+      }
+    };
+
+    setSelectedUserToAdd(null);
+    loadUsers();
+
+    return () => {
+      isActive = false;
+    };
+  }, [canAddParticipants, database, open]);
+
+  const createParticipant = (user: Pick<User, 'id' | 'displayName'>): WorkParticipant => {
+    const shouldAutoConfirm = isAppointmentBootswart && user.id === currentUser?.id;
+
+    return {
+      userId: user.id,
+      userName: user.displayName,
+      status: shouldAutoConfirm ? 'confirmed' : 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  };
+
+  const getLatestAppointment = useCallback(async () => {
+    return database.getDocument<WorkAppointment>('workAppointments', appointment.id);
+  }, [database, appointment.id]);
+
   const handleJoin = async () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      const newParticipant: WorkParticipant = {
-        userId: currentUser.id,
-        userName: currentUser.displayName,
-        status: 'pending',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      const latestAppointment = await getLatestAppointment();
+      if (!latestAppointment || latestAppointment.participants.some((participant) => participant.userId === currentUser.id)) {
+        return;
+      }
 
-      await database.arrayUnion<WorkAppointment>('workAppointments', appointment.id, 'participants', [newParticipant]);
+      await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
+        participants: [...latestAppointment.participants, createParticipant(currentUser)],
+      });
       await onUpdate?.();
     } catch (error) {
       console.error('Error joining appointment:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleLeave = async () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      const participant = appointment.participants.find((p) => p.userId === currentUser.id);
-      if (participant) {
-        await database.arrayRemove<WorkAppointment>('workAppointments', appointment.id, 'participants', [participant]);
-        await onUpdate?.();
+      const latestAppointment = await getLatestAppointment();
+      if (!latestAppointment) {
+        return;
       }
+
+      const updatedParticipants = latestAppointment.participants.filter((participant) => participant.userId !== currentUser.id);
+      if (updatedParticipants.length === latestAppointment.participants.length) {
+        return;
+      }
+
+      await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
+        participants: updatedParticipants,
+      });
+      await onUpdate?.();
     } catch (error) {
       console.error('Error leaving appointment:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+  };
+
+  const handleAddParticipant = async () => {
+    if (!selectedUserToAdd) return;
+    setLoading(true);
+    try {
+      const latestAppointment = await getLatestAppointment();
+      if (!latestAppointment || latestAppointment.participants.some((participant) => participant.userId === selectedUserToAdd.id)) {
+        return;
+      }
+
+      await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
+        participants: [...latestAppointment.participants, createParticipant(selectedUserToAdd)],
+      });
+      setSelectedUserToAdd(null);
+      await onUpdate?.();
+    } catch (error) {
+      console.error('Error adding participant to appointment:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleUpdateParticipantStatus = async (participantId: string, status: 'confirmed' | 'declined') => {
     setLoading(true);
     try {
-      const updatedParticipants = appointment.participants.map((p) =>
+      const latestAppointment = await getLatestAppointment();
+      if (!latestAppointment) {
+        return;
+      }
+
+      const updatedParticipants = latestAppointment.participants.map((p) =>
         p.userId === participantId ? { ...p, status, updatedAt: new Date() } : p
       );
 
@@ -152,8 +258,9 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
       await onUpdate?.();
     } catch (error) {
       console.error('Error updating participant status:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleSave = async () => {
@@ -171,17 +278,22 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
     setLoading(false);
   };
 
-  const handleParticipantChange = useCallback((aptm: WorkAppointment, participantId: string, field: 'startTime' | 'endTime') => debounce((newTime: Dayjs | null) => {
-    const updateParticipant = async (aptm: WorkAppointment, participantId: string, field: 'startTime' | 'endTime', newTime: Dayjs | null) => {
+  const handleParticipantChange = useCallback((participantId: string, field: 'startTime' | 'endTime') => debounce((newTime: Dayjs | null) => {
+    const updateParticipant = async (participantId: string, field: 'startTime' | 'endTime', newTime: Dayjs | null) => {
       if (!newTime) return;
-      const updatedParticipants = aptm?.participants?.map((p) =>
+      const latestAppointment = await getLatestAppointment();
+      if (!latestAppointment) {
+        return;
+      }
+
+      const updatedParticipants = latestAppointment.participants.map((p) =>
         p.userId === participantId ? { ...p, [field]: newTime.toDate() } : p
       );
-      await database.updateDocument('workAppointments', aptm.id, { participants: updatedParticipants });
+      await database.updateDocument('workAppointments', latestAppointment.id, { participants: updatedParticipants });
       await onUpdate?.();
     };
-    updateParticipant(aptm, participantId, field, newTime);
-  }, 500), [onUpdate, database]);
+    updateParticipant(participantId, field, newTime);
+  }, 500), [database, getLatestAppointment, onUpdate]);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -216,15 +328,28 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
               }}
             />
           ) : (
-            <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }} color="primary.contrastText">
-              {appointment.title} {appointment.private ? '(privat)' : ''}
-          {appointment.createdByUserName && (
-            <Typography variant="caption" sx={{ opacity: 0.75, fontWeight: 'normal', display: 'block', mt: 0.5 }} color="primary.contrastText">
-              Erstellt von {appointment.createdByUserName}
-            </Typography>
+            <>
+              <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }} color="primary.contrastText">
+                {appointment.title}
+              </Typography>
+              {appointment.createdByUserName && (
+                <Typography variant="caption" sx={{ opacity: 0.75, fontWeight: 'normal', display: 'block', mt: 0.5 }} color="primary.contrastText">
+                  Erstellt von {appointment.createdByUserName}
+                </Typography>
+              )}
+            </>
           )}
-            </Typography>
-          )}
+          <Chip
+            size="small"
+            label={appointmentScopeLabel}
+            sx={{
+              mt: 1,
+              mb: 1,
+              bgcolor: 'rgba(255, 255, 255, 0.16)',
+              color: 'primary.contrastText',
+              fontWeight: 'bold'
+            }}
+          />
           <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 'normal' }} color="primary.contrastText">
             {dayjs(appointment.startTime).format('dddd, DD. MMMM YYYY')} - {dayjs(appointment.endTime).format('dddd, DD. MMMM YYYY')}
           </Typography>
@@ -342,6 +467,35 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                 />
               )}
             </Box>
+            {canAddParticipants && (
+              <Box sx={{ px: 2, pt: 2, display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Autocomplete
+                  sx={{ flex: 1, minWidth: 240 }}
+                  size="small"
+                  options={selectableUsers}
+                  value={selectedUserToAdd}
+                  onChange={(_, value) => setSelectedUserToAdd(value)}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  getOptionLabel={(option) => option.displayName}
+                  loading={usersLoading}
+                  noOptionsText="Keine weiteren Mitglieder"
+                  loadingText="Mitglieder werden geladen"
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Teilnehmer hinzufügen"
+                    />
+                  )}
+                />
+                <Button
+                  variant="outlined"
+                  onClick={handleAddParticipant}
+                  disabled={loading === true || usersLoading || !selectedUserToAdd}
+                >
+                  Hinzufügen
+                </Button>
+              </Box>
+            )}
 
             <List sx={{
               p: 0,
@@ -387,7 +541,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                           sx={{ fontWeight: 'bold' }}
                         />
                         {/* show time toggle button when participant status is not confirmed */}
-                        {participant.status !== 'confirmed' && (isAdmin || canEdit || participant.userId === currentUser?.id) && (
+                        {participant.status !== 'confirmed' && (canManageParticipants || participant.userId === currentUser?.id) && (
                           <Box sx={{ ml: 1, display: 'flex', alignItems: 'center' }}>
                             <IconButton
                               color="primary"
@@ -404,7 +558,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                           </Box>
                         )}
                         {/* show admin action buttons */}
-                        {(isAdmin || isAppointmentBootswart) && participant.status === 'pending' && (
+                        {canManageParticipants && participant.status === 'pending' && (
                           <Box sx={{ ml: 1 }}>
                             <IconButton
                               onClick={() => handleUpdateParticipantStatus(participant.userId, 'confirmed')}
@@ -449,14 +603,14 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                         <DateTimePicker
                           label="Startzeit"
                           value={participant.startTime ? dayjs(participant.startTime) : dayjs(appointment.startTime)}
-                          onChange={handleParticipantChange(appointment, participant.userId, 'startTime')}
+                          onChange={handleParticipantChange(participant.userId, 'startTime')}
                           sx={{ flex: 1, mt: 1 }}
                           format="DD.MM.YYYY HH:mm"
                         />
                         <DateTimePicker
                           label="Endzeit"
                           value={participant.endTime ? dayjs(participant.endTime) : dayjs(appointment.endTime)}
-                          onChange={handleParticipantChange(appointment, participant.userId, 'endTime')}
+                          onChange={handleParticipantChange(participant.userId, 'endTime')}
                           sx={{ flex: 1, mt: 1 }}
                           format="DD.MM.YYYY HH:mm"
                         />
@@ -546,7 +700,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                   <Button
                     variant="contained"
                     onClick={handleJoin}
-                    disabled={loading === true || Boolean(appointment.maxParticipants && appointment.participants.length >= appointment.maxParticipants)}
+                    disabled={loading === true || Boolean(isParticipantLimitReached && !canManageParticipants)}
                     color="primary"
                   >
                     Teilnehmen
