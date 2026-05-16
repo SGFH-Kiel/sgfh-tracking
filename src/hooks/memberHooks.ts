@@ -62,16 +62,23 @@ const mapSnapshotToUserWorkHours = (
   };
 };
 
-export const useCalculateWorkHours = (onlyAppointments?: WorkAppointment[], onlyUser?: User): { loading: boolean; error: string | null; userWorkHours: UserWorkHours[]; users: User[]; reload: () => void } => {
+export const useCalculateWorkHours = (onlyAppointments?: WorkAppointment[], onlyUser?: User): { loading: boolean; refreshing: boolean; error: string | null; userWorkHours: UserWorkHours[]; users: User[]; reload: () => void } => {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [computedUsers, setComputedUsers] = useState<User[]>([]);
   const [userWorkHours, setUserWorkHours] = useState<UserWorkHours[]>([]);
   const { database, systemConfig } = useApp();
 
   const fetchData = useCallback(async (appointments?: WorkAppointment[], user?: User) => {
+    const isInitial = !hasLoadedOnce;
     try {
-      setLoading(true);
+      if (isInitial) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
       setError(null);
 
       // Fetch necessary users
@@ -98,10 +105,15 @@ export const useCalculateWorkHours = (onlyAppointments?: WorkAppointment[], only
         ? 'Keine Berechtigung zum Abrufen der Arbeitsstunden' 
         : 'Fehler beim Abrufen der Arbeitsstunden');
     } finally {
-      setLoading(false);
+      if (isInitial) {
+        setLoading(false);
+        setHasLoadedOnce(true);
+      } else {
+        setRefreshing(false);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [database, systemConfig.yearChangeDate.getTime()]);
+  }, [database, systemConfig.yearChangeDate.getTime(), hasLoadedOnce]);
 
   useEffect(() => {
     fetchData(onlyAppointments, onlyUser);
@@ -109,7 +121,7 @@ export const useCalculateWorkHours = (onlyAppointments?: WorkAppointment[], only
 
   const reload = useCallback(fetchData, [database, onlyAppointments, onlyUser, fetchData]);
 
-  return { loading, error, userWorkHours, users: computedUsers, reload };
+  return { loading, refreshing, error, userWorkHours, users: computedUsers, reload };
 };
 
 export const useMemberReservationEligibility = (): MemberEligibility => {

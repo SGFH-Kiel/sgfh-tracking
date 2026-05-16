@@ -55,6 +55,12 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT) {
 
 const db = admin.firestore();
 
+// Configure emulator if specified
+if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+  process.env.FIRESTORE_EMULATOR_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  db.settings({ host: process.env.FIREBASE_AUTH_EMULATOR_HOST, ssl: false });
+}
+
 /**
  * Deserialises special types encoded by the backup script back to Firestore types.
  */

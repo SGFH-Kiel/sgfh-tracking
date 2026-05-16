@@ -101,6 +101,9 @@ export interface WorkParticipant {
   updatedAt: Date;
   startTime?: Date;
   endTime?: Date;
+  confirmedByUserId?: string;
+  confirmedByUserName?: string;
+  confirmedAt?: Date;
 }
 
 export type ReservationStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'cancelled';

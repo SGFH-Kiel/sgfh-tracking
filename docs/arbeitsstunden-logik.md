@@ -96,3 +96,34 @@ const canEdit = isSuperAdmin || canEditOwnPrivate || (canManageParticipants && !
 ### Ersteller-Tracking
 
 Beim Anlegen eines Termins werden `createdByUserId` und `createdByUserName` aus dem aktuellen Nutzer gesetzt (siehe `AppointmentDialog.tsx`). Diese Felder sind optional (`?`) für Abwärtskompatibilität mit älteren Einträgen ohne Creator-Tracking.
+
+## Freigabe-Tracking
+
+Der Datentyp `WorkParticipant` enthält drei optionale Felder, die festhalten, wer eine Bestätigung erteilt hat:
+
+| Feld | Beschreibung |
+|---|---|
+| `confirmedByUserId` | User-ID des Admins/Bootswarts, der `status` auf `confirmed` gesetzt hat |
+| `confirmedByUserName` | Anzeigename desselben Nutzers (Snapshot zum Zeitpunkt der Bestätigung) |
+| `confirmedAt` | Zeitpunkt der Bestätigung |
+
+Die Felder werden in `AppointmentDetailsDialog` und `WorkHoursTracker` jeweils beim Wechsel auf `confirmed` gesetzt und beim Wechsel zurück auf `pending` oder zu `declined` automatisch entfernt. Sie werden ausschließlich im Detail-Dialog angezeigt (als Untertext beim Teilnehmer-Status). Bestandseinträge ohne diese Felder bleiben funktional.
+
+## Freigabe zurücknehmen
+
+Bestätigte Teilnehmer-Einträge können durch Admins, Superadmins und zuständige Bootswarte wieder auf `pending` zurückgesetzt werden („Freigabe zurücknehmen"-Button mit Replay-Icon). Das eigene Mitglied selbst kann eine Freigabe nicht zurücknehmen. Beim Zurücknehmen werden die `confirmedBy*`-Felder gelöscht und ein zusätzlicher `activityLog`-Eintrag geschrieben (siehe `docs/aktivitaetsverfolgung.md`).
+
+## Bootzuordnung nachträglich ändern
+
+Admins und Superadmins können die Bootzuordnung eines öffentlichen Termins **jederzeit** ändern, auch wenn der Termin bereits in der Vergangenheit liegt und bestätigte Teilnehmer enthält. Im `AppointmentDetailsDialog` steht dafür ein Inline-Edit-Icon neben dem Boot-Chip im Kopfbereich zur Verfügung; im normalen Edit-Modus existiert zusätzlich ein Boot-Auswahlfeld. Bootswarte können das Boot weiterhin nur im regulären Edit-Modus (also bei nicht gesperrten Terminen) anpassen.
+
+## Übersicht „Mitgliederstunden"
+
+Die Übersicht für Admins und Bootswarte (`WorkHoursTracker`) bietet:
+
+- **Suche** nach Anzeigename (clientseitig, case-insensitive)
+- **Filter** „Nur ausstehende Prüfung" — zeigt nur Mitglieder mit `pending`-Einträgen aus den eigenen Booten
+- **Boot-Filter** — zeigt nur Mitglieder mit Einträgen für ein bestimmtes Boot (oder ohne Boot). Die jährlichen Summen sind dabei nicht boot-spezifisch — der Filter wirkt nur auf die Sichtbarkeit der Zeile.
+- **Sortierung** nach Name, Fortschritt, Restdauer oder Status (über `TableSortLabel`)
+
+Statusänderungen an Teilnehmern werden optimistisch im lokalen State gespiegelt und im Hintergrund neu geladen, ohne dass die Tabelle ausgetauscht wird; dadurch bleibt die Scroll-Position erhalten.

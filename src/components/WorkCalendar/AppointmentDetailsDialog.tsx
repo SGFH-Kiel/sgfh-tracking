@@ -14,6 +14,12 @@ import {
   IconButton,
   TextField,
   Autocomplete,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  SelectChangeEvent,
+  Tooltip,
 } from '@mui/material';
 import {
   Check as CheckIcon,
@@ -22,7 +28,10 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon,
   Save as SaveIcon,
+  Replay as ReplayIcon,
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
+import { writeActivityLog } from '../../domain/activityLog';
 import { CalendarIcon, DateTimePicker } from '@mui/x-date-pickers';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/de';
@@ -51,6 +60,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   onCopy,
 }) => {
   const { isAdmin, isSuperAdmin, database, boats, currentUser } = useApp();
+  const { enqueueSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
@@ -58,6 +68,8 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   const [memberOptions, setMemberOptions] = useState<User[]>([]);
   const [selectedUserToAdd, setSelectedUserToAdd] = useState<User | null>(null);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [isBoatPickerOpen, setIsBoatPickerOpen] = useState(false);
+  const [boatUpdating, setBoatUpdating] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -103,6 +115,8 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   // Private appointments created by the current user are editable as long as no participant is confirmed yet
   const canEditOwnPrivate = !!appointment.private && isCreator && !hasConfirmedParticipants;
   const canEdit = isSuperAdmin || canEditOwnPrivate || (canManageAppointment && !isLockedPublicAppointment);
+  // Boat assignment may be corrected by admins/superadmins even on locked public appointments.
+  const canEditBoat = !appointment.private && (isSuperAdmin || isAdmin);
   const canAddParticipants = !appointment.private && canManageParticipants;
   const isMyPrivateAppointment = appointment.private && appointment.participants.some(p => p.userId === currentUser?.id);
   const isParticipantLimitReached = Boolean(appointment.maxParticipants && appointment.participants.length >= appointment.maxParticipants);
@@ -240,7 +254,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
     }
   };
 
-  const handleUpdateParticipantStatus = async (participantId: string, status: 'confirmed' | 'declined') => {
+  const handleUpdateParticipantStatus = async (participantId: string, status: 'confirmed' | 'declined' | 'pending') => {
     setLoading(true);
     try {
       const latestAppointment = await getLatestAppointment();
@@ -248,18 +262,90 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
         return;
       }
 
-      const updatedParticipants = latestAppointment.participants.map((p) =>
-        p.userId === participantId ? { ...p, status, updatedAt: new Date() } : p
-      );
+      const targetParticipant = latestAppointment.participants.find((p) => p.userId === participantId);
+      const previousStatus = targetParticipant?.status;
+
+      const updatedParticipants = latestAppointment.participants.map((p) => {
+        if (p.userId !== participantId) return p;
+        const next: WorkParticipant = { ...p, status, updatedAt: new Date() };
+        if (status === 'confirmed' && currentUser) {
+          next.confirmedByUserId = currentUser.id;
+          next.confirmedByUserName = currentUser.displayName;
+          next.confirmedAt = new Date();
+        } else {
+          // Strip confirmation metadata when reverting to pending or moving to declined
+          delete next.confirmedByUserId;
+          delete next.confirmedByUserName;
+          delete next.confirmedAt;
+        }
+        return next;
+      });
 
       await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
         participants: updatedParticipants,
       });
+      if (currentUser) {
+        await writeActivityLog(database, {
+          type: 'workHour.updated',
+          entityId: appointment.id,
+          entityType: 'workHour',
+          actorId: currentUser.id,
+          actorName: currentUser.displayName,
+          details: {
+            action: 'participant_status_changed',
+            title: appointment.title,
+            targetUserId: participantId,
+            targetUserName: targetParticipant?.userName,
+            previousStatus,
+            newStatus: status,
+          },
+        });
+      }
       await onUpdate?.();
     } catch (error) {
       console.error('Error updating participant status:', error);
+      enqueueSnackbar('Fehler beim Aktualisieren des Status', { variant: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBoatChange = async (nextBoatId: string) => {
+    if (boatUpdating) return;
+    const normalized = nextBoatId || '';
+    if (normalized === (appointment.boatId || '')) {
+      setIsBoatPickerOpen(false);
+      return;
+    }
+    setBoatUpdating(true);
+    try {
+      await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
+        boatId: normalized,
+        updatedAt: new Date(),
+      });
+      if (currentUser) {
+        await writeActivityLog(database, {
+          type: 'workHour.updated',
+          entityId: appointment.id,
+          entityType: 'workHour',
+          actorId: currentUser.id,
+          actorName: currentUser.displayName,
+          details: {
+            action: 'boat_changed',
+            title: appointment.title,
+            previousBoatId: appointment.boatId || '',
+            newBoatId: normalized,
+          },
+        });
+      }
+      enqueueSnackbar('Bootzuordnung aktualisiert.', { variant: 'success' });
+      await onUpdate?.();
+      setIsBoatPickerOpen(false);
+    } catch (error) {
+      console.error('Error changing appointment boat:', error);
+      enqueueSnackbar('Fehler beim Aktualisieren der Bootzuordnung', { variant: 'error' });
+    } finally {
+      setBoatUpdating(false);
     }
   };
 
@@ -339,17 +425,58 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
               )}
             </>
           )}
-          <Chip
-            size="small"
-            label={appointmentScopeLabel}
-            sx={{
-              mt: 1,
-              mb: 1,
-              bgcolor: 'rgba(255, 255, 255, 0.16)',
-              color: 'primary.contrastText',
-              fontWeight: 'bold'
-            }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, mb: 1, flexWrap: 'wrap' }}>
+            {isBoatPickerOpen && canEditBoat ? (
+              <FormControl
+                size="small"
+                variant="standard"
+                sx={{
+                  minWidth: 200,
+                  bgcolor: 'rgba(255, 255, 255, 0.16)',
+                  borderRadius: 1,
+                  px: 1,
+                  '& .MuiInputBase-root': { color: 'primary.contrastText' },
+                  '& .MuiSvgIcon-root': { color: 'primary.contrastText' },
+                  '& .MuiInput-underline:before': { borderBottomColor: 'rgba(255,255,255,0.42)' },
+                }}
+              >
+                <Select
+                  value={appointment.boatId || ''}
+                  onChange={(e) => handleBoatChange(e.target.value as string)}
+                  disabled={boatUpdating}
+                  disableUnderline
+                  autoWidth
+                >
+                  <MenuItem value="">Kein Boot</MenuItem>
+                  {boats.map((boat) => (
+                    <MenuItem key={boat.id} value={boat.id}>{boat.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            ) : (
+              <Chip
+                size="small"
+                label={appointmentScopeLabel}
+                sx={{
+                  bgcolor: 'rgba(255, 255, 255, 0.16)',
+                  color: 'primary.contrastText',
+                  fontWeight: 'bold'
+                }}
+              />
+            )}
+            {canEditBoat && (
+              <Tooltip title={isBoatPickerOpen ? 'Schließen' : 'Boot ändern'}>
+                <IconButton
+                  size="small"
+                  onClick={() => setIsBoatPickerOpen((v) => !v)}
+                  disabled={boatUpdating}
+                  sx={{ color: 'primary.contrastText' }}
+                >
+                  {isBoatPickerOpen ? <CloseIcon fontSize="small" /> : <EditIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
           <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 'normal' }} color="primary.contrastText">
             {dayjs(appointment.startTime).format('dddd, DD. MMMM YYYY')} - {dayjs(appointment.endTime).format('dddd, DD. MMMM YYYY')}
           </Typography>
@@ -388,14 +515,32 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
           </Box>
           
           {isEditing ? (
-            <TextField
-              fullWidth
-              multiline
-              rows={4}
-              value={editedData.description}
-              onChange={(e) => setEditedData({ ...editedData, description: e.target.value })}
-              sx={{ mb: 2 }}
-            />
+            <>
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                value={editedData.description}
+                onChange={(e) => setEditedData({ ...editedData, description: e.target.value })}
+                sx={{ mb: 2 }}
+              />
+              {!appointment.private && (
+                <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                  <InputLabel id="appointment-boat-edit-label">Boot</InputLabel>
+                  <Select
+                    labelId="appointment-boat-edit-label"
+                    label="Boot"
+                    value={editedData.boatId ?? ''}
+                    onChange={(e: SelectChangeEvent) => setEditedData({ ...editedData, boatId: e.target.value })}
+                  >
+                    <MenuItem value="">Kein Boot</MenuItem>
+                    {boats.map((boat) => (
+                      <MenuItem key={boat.id} value={boat.id}>{boat.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            </>
           ) : (
             <Typography variant="body1" sx={{ mb: 2, whiteSpace: 'pre-line' }}>
               {appointment.description}
@@ -560,28 +705,53 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                         {/* show admin action buttons */}
                         {canManageParticipants && participant.status === 'pending' && (
                           <Box sx={{ ml: 1 }}>
-                            <IconButton
-                              onClick={() => handleUpdateParticipantStatus(participant.userId, 'confirmed')}
-                              disabled={loading === true}
-                              color="success"
-                              size="small"
-                              sx={{ mr: 1 }}
-                            >
-                              <CheckIcon />
-                            </IconButton>
-                            <IconButton
-                              onClick={() => handleUpdateParticipantStatus(participant.userId, 'declined')}
-                              disabled={loading === true}
-                              color="error"
-                              size="small"
-                            >
-                              <CloseIcon />
-                            </IconButton>
+                            <Tooltip title="Bestätigen">
+                              <IconButton
+                                onClick={() => handleUpdateParticipantStatus(participant.userId, 'confirmed')}
+                                disabled={loading === true}
+                                color="success"
+                                size="small"
+                                sx={{ mr: 1 }}
+                              >
+                                <CheckIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Ablehnen">
+                              <IconButton
+                                onClick={() => handleUpdateParticipantStatus(participant.userId, 'declined')}
+                                disabled={loading === true}
+                                color="error"
+                                size="small"
+                              >
+                                <CloseIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        )}
+                        {canManageParticipants && participant.status === 'confirmed' && participant.userId !== currentUser?.id && (
+                          <Box sx={{ ml: 1 }}>
+                            <Tooltip title="Freigabe zurücknehmen">
+                              <IconButton
+                                onClick={() => handleUpdateParticipantStatus(participant.userId, 'pending')}
+                                disabled={loading === true}
+                                color="warning"
+                                size="small"
+                              >
+                                <ReplayIcon />
+                              </IconButton>
+                            </Tooltip>
                           </Box>
                         )}
                       </Box>
                     }
-                    secondary={                      
+                    secondary={
+                      <>
+                        {participant.status === 'confirmed' && participant.confirmedByUserName && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            Bestätigt von {participant.confirmedByUserName}
+                            {participant.confirmedAt ? ` am ${dayjs(participant.confirmedAt).format('DD.MM.YYYY')}` : ''}
+                          </Typography>
+                        )}
                         <Box 
                           id={`time-picker-${participant.userId}`}
                           sx={{
@@ -615,6 +785,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                           format="DD.MM.YYYY HH:mm"
                         />
                         </Box>
+                      </>
                     }
                   />
                 </ListItem>

@@ -10,6 +10,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   CircularProgress,
   Alert,
   Chip,
@@ -18,6 +19,15 @@ import {
   IconButton,
   Button,
   SxProps,
+  TextField,
+  Switch,
+  FormControlLabel,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  SelectChangeEvent,
+  InputAdornment,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -27,7 +37,11 @@ import {
   Upload as UploadIcon,
   Download as DownloadIcon,
   Edit as EditIcon,
+  Replay as ReplayIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
+import { writeActivityLog } from '../../domain/activityLog';
 import { useApp } from '../../contexts/AppContext';
 import { usePageTitle } from '../../contexts/PageTitleContext';
 import { useCalculateWorkHours, UserWorkHours } from '../../hooks/memberHooks';
@@ -86,15 +100,45 @@ const StatusChip = ({ status, overall, sx }: { status: WORKSTATUS; overall: bool
   />;
 };
 
+type MembersSortKey = 'name' | 'progress' | 'remaining' | 'status';
+type SortDirection = 'asc' | 'desc';
+
+const BOAT_FILTER_ALL = '';
+const BOAT_FILTER_NONE = '__none__';
+
+const STATUS_RANK: Record<UserWorkHours['status'], number> = {
+  done: 0,
+  planned: 1,
+  open: 2,
+  attention: 3,
+  paused: 4,
+};
+
 export const WorkHoursTracker: React.FC = () => {
   const { isAdmin, isAnyBootswart, currentUser, systemConfig, database, boats } = useApp();
+  const { enqueueSnackbar } = useSnackbar();
   const [privateHoursDialogOpen, setPrivateHoursDialogOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<WorkAppointment | undefined>(undefined);
   const [detailAppointment, setDetailAppointment] = useState<WorkAppointment | undefined>(undefined);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
-  const { userWorkHours, loading, error, reload: refreshAppointments } = useCalculateWorkHours();
+  const { userWorkHours, loading, refreshing, error, reload: refreshAppointments } = useCalculateWorkHours();
   const { setBreadcrumbs } = usePageTitle();
+  // Optimistic local overrides per `${appointmentId}:${userId}` to keep scroll position
+  // and avoid status flicker between status change and the asynchronous refresh.
+  const [participantOverrides, setParticipantOverrides] = useState<Map<string, Partial<WorkParticipant>>>(new Map());
+  // Toolbar state for the member overview table
+  const [memberSearch, setMemberSearch] = useState('');
+  const [onlyPendingReview, setOnlyPendingReview] = useState(false);
+  const [boatFilter, setBoatFilter] = useState<string>(BOAT_FILTER_ALL);
+  const [sortKey, setSortKey] = useState<MembersSortKey>('name');
+  const [sortDir, setSortDir] = useState<SortDirection>('asc');
+
+  const overrideKey = (appointmentId: string, userId: string) => `${appointmentId}:${userId}`;
+  const mergeParticipant = useCallback((appointmentId: string, participant: WorkParticipant): WorkParticipant => {
+    const override = participantOverrides.get(overrideKey(appointmentId, participant.userId));
+    return override ? { ...participant, ...override } : participant;
+  }, [participantOverrides]);
 
   const myBoatIds = useMemo(
     () => new Set(boats.filter(b => b.bootswart === currentUser?.id || b.bootswart2 === currentUser?.id).map(b => b.id)),
@@ -192,20 +236,80 @@ export const WorkHoursTracker: React.FC = () => {
     setPrivateHoursDialogOpen(true);
   }, [setPrivateHoursDialogOpen]);
 
-  const changeParticipantStatus = useCallback((appointment: WorkAppointment, userId: string, status: 'confirmed' | 'declined') => async () => {
-    const latestAppointment = await database.getDocument<WorkAppointment>('workAppointments', appointment.id);
-    if (!latestAppointment) {
-      return;
-    }
+  const changeParticipantStatus = useCallback((appointment: WorkAppointment, userId: string, status: 'confirmed' | 'declined' | 'pending') => async () => {
+    if (!currentUser) return;
+    const key = overrideKey(appointment.id, userId);
+    const targetParticipant = appointment.participants.find(p => p.userId === userId);
+    const previousStatus = targetParticipant?.status;
 
-    const updatedParticipants = latestAppointment.participants.map(p =>
-      p.userId === userId ? { ...p, status } : p
-    );
-    await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
-      participants: updatedParticipants
+    // Apply optimistic override so the UI updates immediately and scroll position is preserved.
+    setParticipantOverrides(prev => {
+      const nextMap = new Map(prev);
+      const override: Partial<WorkParticipant> = { status };
+      if (status === 'confirmed') {
+        override.confirmedByUserId = currentUser.id;
+        override.confirmedByUserName = currentUser.displayName;
+        override.confirmedAt = new Date();
+      } else {
+        override.confirmedByUserId = undefined;
+        override.confirmedByUserName = undefined;
+        override.confirmedAt = undefined;
+      }
+      nextMap.set(key, override);
+      return nextMap;
     });
-    await refreshAppointments();
-  }, [database, refreshAppointments]);
+
+    try {
+      const latestAppointment = await database.getDocument<WorkAppointment>('workAppointments', appointment.id);
+      if (!latestAppointment) {
+        return;
+      }
+
+      const updatedParticipants = latestAppointment.participants.map(p => {
+        if (p.userId !== userId) return p;
+        const next: WorkParticipant = { ...p, status, updatedAt: new Date() };
+        if (status === 'confirmed') {
+          next.confirmedByUserId = currentUser.id;
+          next.confirmedByUserName = currentUser.displayName;
+          next.confirmedAt = new Date();
+        } else {
+          delete next.confirmedByUserId;
+          delete next.confirmedByUserName;
+          delete next.confirmedAt;
+        }
+        return next;
+      });
+      await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
+        participants: updatedParticipants,
+      });
+      await writeActivityLog(database, {
+        type: 'workHour.updated',
+        entityId: appointment.id,
+        entityType: 'workHour',
+        actorId: currentUser.id,
+        actorName: currentUser.displayName,
+        details: {
+          action: 'participant_status_changed',
+          title: appointment.title,
+          targetUserId: userId,
+          targetUserName: targetParticipant?.userName,
+          previousStatus,
+          newStatus: status,
+        },
+      });
+      await refreshAppointments();
+    } catch (err) {
+      console.error('Error updating participant status:', err);
+      enqueueSnackbar('Fehler beim Aktualisieren des Status', { variant: 'error' });
+    } finally {
+      // Drop the override either after refresh succeeded (state now reflects server) or after rollback.
+      setParticipantOverrides(prev => {
+        const nextMap = new Map(prev);
+        nextMap.delete(key);
+        return nextMap;
+      });
+    }
+  }, [database, refreshAppointments, currentUser, enqueueSnackbar]);
   
 
   useEffect(() => {
@@ -237,6 +341,77 @@ export const WorkHoursTracker: React.FC = () => {
     });
     return nextAppointments;
   }, [userWorkHours]);
+
+  const boatFilterOptions = useMemo(() => {
+    if (isAdmin) return boats;
+    return boats.filter((b) => myBoatIds.has(b.id));
+  }, [isAdmin, boats, myBoatIds]);
+
+  const visibleUserWorkHours = useMemo(() => {
+    const baseFiltered = userWorkHours.filter(({ appointments: { completed, upcoming, declined } }) => {
+      if (isAdmin) return true;
+      const allApts = [...completed, ...upcoming, ...declined];
+      return allApts.some(apt => apt.boatId && myBoatIds.has(apt.boatId));
+    });
+
+    const searchLower = memberSearch.trim().toLowerCase();
+    const withDerived = baseFiltered
+      .map((uh) => {
+        const relevantUpcoming = uh.appointments.upcoming
+          .filter(apt => isAdmin || (apt.boatId && myBoatIds.has(apt.boatId)));
+        const hasPending = relevantUpcoming
+          .some(apt => apt.participants.some(p => mergeParticipant(apt.id, p).status === 'pending' && p.userId === uh.user.id));
+        return { uh, hasPending };
+      })
+      .filter(({ uh, hasPending }) => {
+        if (searchLower && !uh.user.displayName.toLowerCase().includes(searchLower)) return false;
+        if (onlyPendingReview && !hasPending) return false;
+        if (boatFilter !== BOAT_FILTER_ALL) {
+          const allApts = [...uh.appointments.completed, ...uh.appointments.upcoming, ...uh.appointments.declined];
+          if (boatFilter === BOAT_FILTER_NONE) {
+            if (!allApts.some(apt => !apt.boatId)) return false;
+          } else if (!allApts.some(apt => apt.boatId === boatFilter)) {
+            return false;
+          }
+        }
+        return true;
+      });
+
+    const sortMul = sortDir === 'asc' ? 1 : -1;
+    return [...withDerived].sort((a, b) => {
+      switch (sortKey) {
+        case 'name':
+          return a.uh.user.displayName.localeCompare(b.uh.user.displayName, 'de') * sortMul;
+        case 'progress': {
+          const ratioA = a.uh.completedDuration / Math.max(1, systemConfig.workHourThreshold * 3600000);
+          const ratioB = b.uh.completedDuration / Math.max(1, systemConfig.workHourThreshold * 3600000);
+          return (ratioA - ratioB) * sortMul;
+        }
+        case 'remaining': {
+          const reqMs = systemConfig.workHourThreshold * 3600000;
+          const remA = Math.max(0, reqMs - a.uh.completedDuration - a.uh.upcomingDuration);
+          const remB = Math.max(0, reqMs - b.uh.completedDuration - b.uh.upcomingDuration);
+          return (remA - remB) * sortMul;
+        }
+        case 'status': {
+          const effA = a.hasPending ? STATUS_RANK.attention : STATUS_RANK[a.uh.status];
+          const effB = b.hasPending ? STATUS_RANK.attention : STATUS_RANK[b.uh.status];
+          return (effA - effB) * sortMul;
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [userWorkHours, isAdmin, myBoatIds, memberSearch, onlyPendingReview, boatFilter, sortKey, sortDir, systemConfig.workHourThreshold, mergeParticipant]);
+
+  const handleSort = (key: MembersSortKey) => {
+    if (sortKey === key) {
+      setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
   useEffect(() => {
     if (!detailAppointment) {
@@ -500,11 +675,14 @@ export const WorkHoursTracker: React.FC = () => {
       
       {(isAdmin || isAnyBootswart) && (
         <Paper sx={{ p: 3 }}>
-          <Box sx={{ flexGrow: 1, display: 'flex', gap: 1, justifyContent: 'flex-end', mb: 1 }}>
-            <Typography variant="h5" gutterBottom>
+          {refreshing && (
+            <LinearProgress sx={{ mb: 1 }} />
+          )}
+          <Box sx={{ flexGrow: 1, display: 'flex', gap: 1, justifyContent: 'flex-end', mb: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Typography variant="h5" gutterBottom sx={{ mb: 0 }}>
               Mitgliederstunden
             </Typography>
-            <Box sx={{ flexGrow: 1, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+            <Box sx={{ flexGrow: 1, display: 'flex', gap: 1, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <Button
                 onClick={() => setImportDialogOpen(true)}
                 variant="outlined"
@@ -541,34 +719,107 @@ export const WorkHoursTracker: React.FC = () => {
             </Box>
           </Box>
 
+          <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <TextField
+              size="small"
+              placeholder="Nach Name suchen"
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+              sx={{ minWidth: 220 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel id="work-hours-boat-filter-label">Boot</InputLabel>
+              <Select
+                labelId="work-hours-boat-filter-label"
+                label="Boot"
+                value={boatFilter}
+                onChange={(e: SelectChangeEvent) => setBoatFilter(e.target.value)}
+              >
+                <MenuItem value={BOAT_FILTER_ALL}>Alle Boote</MenuItem>
+                <MenuItem value={BOAT_FILTER_NONE}>Ohne Boot</MenuItem>
+                {boatFilterOptions.map((boat) => (
+                  <MenuItem key={boat.id} value={boat.id}>{boat.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={onlyPendingReview}
+                  onChange={(e) => setOnlyPendingReview(e.target.checked)}
+                  size="small"
+                />
+              }
+              label="Nur ausstehende Prüfung"
+            />
+          </Box>
+
           <TableContainer>
             <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Mitglied</TableCell>
-                <TableCell>Fortschritt</TableCell>
+                <TableCell sortDirection={sortKey === 'name' ? sortDir : false}>
+                  <TableSortLabel
+                    active={sortKey === 'name'}
+                    direction={sortKey === 'name' ? sortDir : 'asc'}
+                    onClick={() => handleSort('name')}
+                  >
+                    Mitglied
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={sortKey === 'progress' ? sortDir : false}>
+                  <TableSortLabel
+                    active={sortKey === 'progress'}
+                    direction={sortKey === 'progress' ? sortDir : 'asc'}
+                    onClick={() => handleSort('progress')}
+                  >
+                    Fortschritt
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell align="right">Absolviert</TableCell>
                 <TableCell align="right">Geplant</TableCell>
-                <TableCell align="right">Ausstehend</TableCell>
-                <TableCell>Status</TableCell>
+                <TableCell align="right" sortDirection={sortKey === 'remaining' ? sortDir : false}>
+                  <TableSortLabel
+                    active={sortKey === 'remaining'}
+                    direction={sortKey === 'remaining' ? sortDir : 'asc'}
+                    onClick={() => handleSort('remaining')}
+                  >
+                    Ausstehend
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={sortKey === 'status' ? sortDir : false}>
+                  <TableSortLabel
+                    active={sortKey === 'status'}
+                    direction={sortKey === 'status' ? sortDir : 'asc'}
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {userWorkHours
-                .filter(({ appointments: { completed, upcoming, declined } }) => {
-                  if (isAdmin) return true;
-                  const allApts = [...completed, ...upcoming, ...declined];
-                  return allApts.some(apt => apt.boatId && myBoatIds.has(apt.boatId));
-                })
-                .map(({ user, completedDuration, upcomingDuration, appointments: {upcoming}, status }) => {
+              {visibleUserWorkHours.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6}>
+                    <Alert severity="info">Keine Mitglieder entsprechen den aktuellen Filtern.</Alert>
+                  </TableCell>
+                </TableRow>
+              )}
+              {visibleUserWorkHours.map(({ uh, hasPending }) => {
+                const { user, completedDuration, upcomingDuration, status } = uh;
                 const remaining = Math.max(
                   0,
                   required - completedDuration - upcomingDuration
                 );
                 const progress = (completedDuration / required) * 100;
-                const hasPending = upcoming
-                  .filter(apt => isAdmin || (apt.boatId && myBoatIds.has(apt.boatId)))
-                  .some(apt => apt.participants.some(p => p.status === 'pending'));
 
                 return (
                   <React.Fragment key={user.id}>
@@ -641,7 +892,8 @@ export const WorkHoursTracker: React.FC = () => {
                                     .filter(apt => isAdmin || (apt.boatId && myBoatIds.has(apt.boatId)))
                                     .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
                                     .map(appointment => {
-                                      const up = appointment.participants.find(p => p.userId === user.id)!;
+                                      const rawUp = appointment.participants.find(p => p.userId === user.id)!;
+                                      const up = mergeParticipant(appointment.id, rawUp);
                                       const start = up.startTime || appointment.startTime;
                                       const end = up.endTime || appointment.endTime;
                                       const isInPast = (end.getTime() < new Date().getTime());
@@ -682,7 +934,7 @@ export const WorkHoursTracker: React.FC = () => {
                                           </TableCell>
                                           {(isAdmin || isBootswart) && (
                                             <TableCell onClick={(e) => e.stopPropagation()}>
-                                              {up.status !== 'confirmed' && (
+                                              {up.status !== 'confirmed' ? (
                                                 <Box sx={{ display: 'flex', gap: 1 }}>
                                                   <Tooltip title="Bestätigen">
                                                     <IconButton
@@ -703,7 +955,17 @@ export const WorkHoursTracker: React.FC = () => {
                                                     </IconButton>
                                                   </Tooltip>
                                                 </Box>
-                                              )}
+                                              ) : user.id !== currentUser?.id ? (
+                                                <Tooltip title="Freigabe zurücknehmen">
+                                                  <IconButton
+                                                    size="small"
+                                                    color="warning"
+                                                    onClick={changeParticipantStatus(appointment, user.id, 'pending')}
+                                                  >
+                                                    <ReplayIcon fontSize="small" />
+                                                  </IconButton>
+                                                </Tooltip>
+                                              ) : null}
                                             </TableCell>
                                           )}
                                         </TableRow>

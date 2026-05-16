@@ -84,6 +84,8 @@ await writeActivityLog(database, {
 | `WorkCalendar.tsx` | `workHour.created`, `workHour.deleted`, `workHour.created` (Serienkopieen) |
 | `MemberList.tsx` (Löschen) | `member.deleted` |
 | `PrivateWorkHoursDialog.tsx` | `workHour.created`, `workHour.updated` |
+| `AppointmentDetailsDialog.tsx` | `workHour.updated` (`action: 'participant_status_changed'`, `action: 'boat_changed'`) |
+| `WorkHoursTracker.tsx` | `workHour.updated` (`action: 'participant_status_changed'`) |
 
 ---
 
