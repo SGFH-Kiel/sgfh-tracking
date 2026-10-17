@@ -9,6 +9,7 @@ Firestore-Daten werden täglich automatisch per GitHub Actions in ein separates,
 - **Aufbewahrung**: 60 Tage (ältere Backups werden automatisch bereinigt)
 - **Kosten**: kostenlos (GitHub Actions Free Tier)
 - **Format**: JSON-Dateien pro Collection, mit Firestore-Typ-Serialisierung
+- **Keepalive**: GitHub deaktiviert zeitgesteuerte Workflows nach 60 Tagen ohne Repository-Aktivität. Das ist vom 16.07. bis 17.10.2026 passiert, in dieser Zeit lief kein Backup. Der Workflow aktiviert sich deshalb nach jedem Lauf selbst über die API neu (Schritt „Keep schedule alive“). Den Status prüfen Sie mit `gh workflow list --all` (`active` statt `disabled_inactivity`).
 
 ## Skripte
 

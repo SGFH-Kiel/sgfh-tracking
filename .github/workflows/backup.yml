@@ -11,6 +11,11 @@ on:
         required: false
         default: 'Manual trigger'
 
+# actions: write wird für den Keepalive-Schritt benötigt (siehe unten)
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   backup:
     name: Export Firestore → Backup Repo
@@ -57,3 +62,11 @@ jobs:
           REASON="${{ github.event.inputs.reason || 'Scheduled daily backup' }}"
           git diff --staged --quiet || git commit -m "backup: ${TIMESTAMP} — ${REASON}"
           git push
+
+      # GitHub deaktiviert zeitgesteuerte Workflows nach 60 Tagen ohne Repository-Aktivität
+      # (so geschehen im Juli 2026). Das erneute Aktivieren über die API hält den Zeitplan am Leben.
+      - name: Keep schedule alive
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/backup.yml/enable"
