@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Paper } from '@mui/material';
+import { Box, Button, Paper } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 import dayjs from 'dayjs';
 import 'dayjs/locale/de';
 import { useApp } from '../../contexts/AppContext';
@@ -7,6 +8,7 @@ import { WorkAppointment, CalendarView } from '../../types/models';
 import { writeActivityLog } from '../../domain/activityLog';
 import { AppointmentDialog } from './AppointmentDialog';
 import { AppointmentDetailsDialog } from './AppointmentDetailsDialog';
+import { getDefaultNewSlot } from '../../hooks/useIsMobile';
 import { Calendar, dayjsLocalizer } from 'react-big-calendar';
 
 const localizer = dayjsLocalizer(dayjs);
@@ -77,6 +79,14 @@ export const WorkCalendar: React.FC = () => {
   return (
     <>
       <Paper sx={{ p: { xs: 1, sm: 2 } }}>
+        {(isAdmin || isAnyBootswart) && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+            {/* Neuer Termin ohne Slot-Auswahl – auf Touch-Geräten sonst nur per langem Druck erreichbar. */}
+            <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenCreateDialog(getDefaultNewSlot())}>
+              Termin anlegen
+            </Button>
+          </Box>
+        )}
         <Calendar
           date={displayDate}
           localizer={localizer}
@@ -85,6 +95,7 @@ export const WorkCalendar: React.FC = () => {
           endAccessor="endTime"
           style={{ height: 'calc(100vh - 250px)', minHeight: 400 }}
           longPressThreshold={100}
+          scrollToTime={new Date(1970, 0, 1, 7, 0, 0)}
           selectable={isAdmin || isAnyBootswart}
           onSelectSlot={handleOpenCreateDialog}
           onSelectEvent={handleOpenDetailsDialog}

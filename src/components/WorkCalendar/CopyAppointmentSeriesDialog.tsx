@@ -20,6 +20,7 @@ import {
 import { ContentCopy as CopyIcon } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import { WorkAppointment } from '../../types/models';
+import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
 
 interface CopyAppointmentSeriesDialogProps {
   open: boolean;
@@ -36,6 +37,7 @@ export const CopyAppointmentSeriesDialog: React.FC<CopyAppointmentSeriesDialogPr
   appointment,
   onSave,
 }) => {
+  const dialogProps = useResponsiveDialogProps();
   const [intervalValue, setIntervalValue] = useState(1);
   const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>('weeks');
   const [count, setCount] = useState(4);
@@ -80,7 +82,7 @@ export const CopyAppointmentSeriesDialog: React.FC<CopyAppointmentSeriesDialogPr
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth {...dialogProps}>
       <Box sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', py: 3, px: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold' }} color="primary.contrastText">
           Als Serie kopieren

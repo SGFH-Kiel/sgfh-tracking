@@ -23,6 +23,7 @@ import { buildParticipantSeasonFields, getBookableSeasons, isSeasonModelActive, 
 import { useDefaultSeason } from '../../hooks/memberHooks';
 import { useSnackbar } from 'notistack';
 import { SeasonSelect } from './SeasonFields';
+import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
 
 interface PrivateWorkHoursDialogProps {
   open: boolean;
@@ -45,6 +46,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
   onUpdate,
   appointment: editAppointment,
 }) => {
+  const dialogProps = useResponsiveDialogProps();
   const { database, currentUser, isAdmin, isAnyBootswart, boats, systemConfig } = useApp();
   const { enqueueSnackbar } = useSnackbar();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -192,7 +194,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth {...dialogProps}>
       <Box sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', py: 3, px: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }} color="primary.contrastText">
           {editAppointment ? 'Arbeitsstunden bearbeiten' : 'Private Arbeitsstunden'}
@@ -238,7 +240,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
               ))}
             </Select>
           </FormControl>
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
             <DateTimePicker
               label="Startzeit"
               value={formData.startTime}

@@ -48,6 +48,7 @@ import {
 } from '../../domain/seasons';
 import { calculateUserWorkHourSnapshot } from '../../domain/workHours';
 import { SystemConfig, User, UserRole, WorkAppointment } from '../../types/models';
+import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
 
 interface SeasonImpact {
   memberCount: number;
@@ -67,6 +68,7 @@ const isActiveMember = (user: User) => !user.deactivated && user.roles?.some((ro
  * - Nach der Aktivierung steuern Admins den Saisonwechsel über zwei Aktionen.
  */
 export const SeasonControl: React.FC = () => {
+  const dialogProps = useResponsiveDialogProps();
   const { database, systemConfig, isSuperAdmin, isAdmin, currentUser, boats, reloadSystemConfig } = useApp();
   const { enqueueSnackbar } = useSnackbar();
   const modelActive = isSeasonModelActive(systemConfig);
@@ -429,7 +431,7 @@ export const SeasonControl: React.FC = () => {
         </>
       )}
 
-      <Dialog open={!!confirmAction} onClose={() => !busy && setConfirmAction(null)} maxWidth="sm" fullWidth>
+      <Dialog open={!!confirmAction} onClose={() => !busy && setConfirmAction(null)} maxWidth="sm" fullWidth {...dialogProps}>
         <DialogTitle>
           {confirmAction === 'activate' && 'Saisonmodell aktivieren'}
           {confirmAction === 'openNext' && `Buchung für ${formatSeason(nextSeason)} öffnen`}

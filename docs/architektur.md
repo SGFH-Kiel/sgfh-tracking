@@ -38,3 +38,11 @@ Die Anwendung besteht aus einem React-Frontend mit TypeScript und Firebase als B
 - Arbeitsstunden zählen pro Saison (explizit am Teilnehmereintrag gespeichert); der Saisonwechsel ist eine bewusste Admin-Aktion statt eines festen Stichtags.
 - Öffentliche Reservierungen werden nicht aus der internen Haupt-Collection veröffentlicht, sondern als minimierte Projektion gespeichert.
 - Unverbindliche Reservierungen werden als Status `draft` modelliert und nur warnend behandelt.
+
+## Darstellung auf Smartphones
+
+- Breakpoints nach MUI: `xs` < 600 px (Smartphone), `sm` ab 600 px (Tablet), `md` ab 900 px (Desktop).
+- `src/hooks/useIsMobile.ts` liefert `useIsMobile()` und `useResponsiveDialogProps()`. Die Hauptdialoge (Termine, Reservierungen, Arbeitsstunden, Import, Boote, Mitglieder, Saisonsteuerung) öffnen auf Smartphones bildschirmfüllend, ihre Aktionsleisten brechen um.
+- Die Kopfzeile zeigt auf Smartphones nur den Seitentitel und Symbole für Einstellungen, Hilfe und Abmelden.
+- Tabellen blenden auf schmalen Bildschirmen Nebenspalten aus und zeigen die Informationen kompakt in der ersten Spalte (z. B. Uhrzeit unter dem Datum, E-Mail unter dem Namen).
+- Beide Kalender haben eine Schaltfläche für neue Einträge („Reservieren“/„Vormerken“, „Termin anlegen“). Auf Touch-Geräten war das sonst nur per langem Druck auf einen Zeitslot möglich. Wochen- und Tagesansicht starten um 07:00.

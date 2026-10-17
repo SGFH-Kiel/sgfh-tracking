@@ -19,6 +19,7 @@ import { read, utils } from 'xlsx';
 import { WorkParticipant, User } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
 import { formatSeason, getCurrentSeason, getManageableSeasons, isSeasonModelActive } from '../../domain/seasons';
+import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
 
 interface ImportWorkHoursDialogProps {
   open: boolean;
@@ -37,6 +38,7 @@ export const ImportWorkHoursDialog: React.FC<ImportWorkHoursDialogProps> = ({
   onClose,
   onImportComplete
 }) => {
+  const dialogProps = useResponsiveDialogProps();
   const { database, boats, systemConfig, isAdmin, currentUser } = useApp();
   // Bootswarte dürfen nur für eigene Boote importieren (Termine ohne Boot sind Admins vorbehalten).
   const importableBoats = isAdmin ? boats : boats.filter((boat) => boat.bootswart === currentUser?.id || boat.bootswart2 === currentUser?.id);
@@ -186,7 +188,7 @@ export const ImportWorkHoursDialog: React.FC<ImportWorkHoursDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth {...dialogProps}>
       <DialogTitle>Arbeitsstunden importieren</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>

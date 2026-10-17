@@ -44,10 +44,12 @@ import { getCurrentSeason, isSeasonModelActive } from '../../domain/seasons';
 import { deletePublicReservationFeed } from '../../domain/reservationSync';
 import { writeActivityLog } from '../../domain/activityLog';
 import humanizeDuration from 'humanize-duration';
+import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
 
 const humanizer = humanizeDuration.humanizer({ language: 'de', round: true, units: ['h'] });
 
 export const MemberList: React.FC = () => {
+  const dialogProps = useResponsiveDialogProps();
   const { setBreadcrumbs } = usePageTitle();
   useEffect(() => {
     setBreadcrumbs([
@@ -55,7 +57,7 @@ export const MemberList: React.FC = () => {
     ]);
   }, [setBreadcrumbs]);
   const { enqueueSnackbar } = useSnackbar();
-  const { currentUser, isSuperAdmin, isAnyBootswart, createUserAndSendInvite, deactivateUser, deleteUser, activateUser, reloadCurrentUser, database, systemConfig } = useApp();
+  const { currentUser, isSuperAdmin, boats, createUserAndSendInvite, deactivateUser, deleteUser, activateUser, reloadCurrentUser, database, systemConfig } = useApp();
   const { loading, error, userWorkHours, users, reload } = useCalculateWorkHours();
   const [open, setOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<User | null>(null);
@@ -321,10 +323,10 @@ export const MemberList: React.FC = () => {
 
   return (
     <Paper sx={{ p: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 2 }}>
         <Typography variant="h5">Mitglieder</Typography>
         {isSuperAdmin && (
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button
               variant="outlined"
               color="success"
@@ -347,14 +349,18 @@ export const MemberList: React.FC = () => {
       </Box>
 
       <TableContainer sx={{ overflowX: 'auto', width: 'inherit' }}>
-        <Table stickyHeader sx={{ tableLayout: 'fixed', width: { xs: 'inherit', md: '100%' } }}>
+        <Table stickyHeader sx={{ tableLayout: { xs: 'auto', md: 'fixed' }, width: '100%', '& th, & td': { px: { xs: 1, sm: 2 } }, '& .MuiChip-root': { m: { xs: 0, md: 1 } } }}>
           <TableHead>
             <TableRow>
               <TableCell>Name</TableCell>
-              <TableCell>E-Mail</TableCell>
-              <TableCell>Rolle</TableCell>
+              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>E-Mail</TableCell>
+              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Rolle</TableCell>
               <TableCell>Beitrag</TableCell>
-              <TableCell>{isSeasonModelActive(systemConfig) ? `Arbeitsstunden ${getCurrentSeason(systemConfig)}` : 'Arbeitsstunden'}</TableCell>
+              <TableCell>
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Arbeitsstunden</Box>
+                <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Std.</Box>
+                {isSeasonModelActive(systemConfig) ? ` ${getCurrentSeason(systemConfig)}` : ''}
+              </TableCell>
               {isSuperAdmin && <TableCell>Aktionen</TableCell>}
             </TableRow>
           </TableHead>
@@ -363,9 +369,14 @@ export const MemberList: React.FC = () => {
               const memberWorkHours = userWorkHours.find(({ user }) => user.id === member.id) || { completedDuration: 0, upcomingDuration: 0, declinedDuration: 0, appointments: { completed: [], upcoming: [], declined: [] } };
               return (
               <TableRow key={member.id}>
-                <TableCell>{member.displayName}</TableCell>
-                <TableCell style={{ wordWrap: 'break-word' }}>{member.email}</TableCell>
                 <TableCell>
+                  {member.displayName}
+                  <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', md: 'none' }, wordBreak: 'break-all' }}>
+                    {member.email}
+                  </Typography>
+                </TableCell>
+                <TableCell style={{ wordWrap: 'break-word' }} sx={{ display: { xs: 'none', md: 'table-cell' } }}>{member.email}</TableCell>
+                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                   {
                     member.deactivated
                       ? (
@@ -374,12 +385,13 @@ export const MemberList: React.FC = () => {
                         <Chip key={role} label={getRoleLabel(role)} sx={{ margin: 1 }} variant="outlined" color={getRoleColor(role)} />
                       ))
                   }
-                  {isAnyBootswart && (
+                  {boats.some((boat) => boat.bootswart === member.id || boat.bootswart2 === member.id) && (
                     <Chip label="Bootswart" sx={{ margin: 1 }} variant="outlined" color="primary" />
                   )}
                 </TableCell>
                 <TableCell>
                   <Chip
+                    size="small"
                     label={member.feesPaid ? 'Bezahlt' : 'Ausstehend'}
                     color={member.feesPaid ? 'success' : 'error'}
                   />
@@ -387,19 +399,21 @@ export const MemberList: React.FC = () => {
                 <TableCell>
                   {member.skipHours ? (
                     <Chip
+                      size="small"
                       label="ausgesetzt"
                       color="warning"
                       variant="outlined"
                     />
                   ) : (
                     <Chip
+                      size="small"
                       label={humanizer(memberWorkHours.completedDuration)}
                       color={memberWorkHours.completedDuration >= systemConfig.workHourThreshold * 3600000 ? 'success' : 'error'}
                     />
                   )}
                 </TableCell>
                 {isSuperAdmin && (
-                  <TableCell>
+                  <TableCell sx={{ whiteSpace: { xs: 'normal', sm: 'nowrap' }, width: { xs: 40, sm: 'auto' } }}>
                     <IconButton onClick={() => handleOpen(member)} size="small">
                       <EditIcon color="primary" />
                     </IconButton>
@@ -421,7 +435,7 @@ export const MemberList: React.FC = () => {
         </Table>
       </TableContainer>
 
-      <Dialog open={open} onClose={handleClose}>
+      <Dialog open={open} onClose={handleClose} fullWidth {...dialogProps}>
         <DialogTitle>
           {editingMember ? 'Mitglied bearbeiten' : 'Neues Mitglied hinzufügen'}
         </DialogTitle>

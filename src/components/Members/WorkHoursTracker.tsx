@@ -525,8 +525,8 @@ export const WorkHoursTracker: React.FC = () => {
           </Typography>
         </Paper>
       )}
-      <Paper sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+      <Paper sx={{ p: { xs: 2, sm: 3 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, mb: 2, flexWrap: 'wrap' }}>
           <Typography variant="h5" gutterBottom>
             Meine Stunden{modelActive ? ` · ${displayedSeason}` : ''}
           </Typography>
@@ -565,7 +565,7 @@ export const WorkHoursTracker: React.FC = () => {
         )}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4, mt: 2 }}>
           <Box key={currentUser?.id} sx={{ minWidth: '100%' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: { xs: 2, sm: 4 }, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
               <Tooltip
                 title={
                   <Box sx={{ p: 1 }}>
@@ -599,7 +599,7 @@ export const WorkHoursTracker: React.FC = () => {
                 }
                 arrow
               >
-                <Box sx={{ flexGrow: 1, cursor: 'pointer', position: 'relative' }}>
+                <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', sm: 'auto' }, cursor: 'pointer', position: 'relative' }}>
                   {/* Base grey progress bar */}
                   <LinearProgress
                     variant="determinate"
@@ -641,7 +641,7 @@ export const WorkHoursTracker: React.FC = () => {
                   />
                 </Box>
               </Tooltip>
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', ml: 1 }}>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', ml: { xs: 0, sm: 1 } }}>
                 <Typography variant="body2" color="success.main">
                   {shortHumanizer(currentUserHours.completedDuration)}
                 </Typography>
@@ -682,7 +682,7 @@ export const WorkHoursTracker: React.FC = () => {
             <TableHead>
               <TableRow>
                 <TableCell>Datum</TableCell>
-                <TableCell>Uhrzeit</TableCell>
+                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Uhrzeit</TableCell>
                 <TableCell>Titel</TableCell>
                 <TableCell>Dauer</TableCell>
                 <TableCell>Status</TableCell>
@@ -692,9 +692,9 @@ export const WorkHoursTracker: React.FC = () => {
             <TableBody>
               {userAppointments.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     <Alert severity="info">
-                      Es sind noch keine Arbeitsstunden vorhanden. Neue Einträge werden hier sofort angezeigt und als ausstehend markiert, bis sie bestätigt wurden.
+                      Es sind noch keine Arbeitsstunden vorhanden.Neue Einträge werden hier sofort angezeigt und als ausstehend markiert, bis sie bestätigt wurden.
                     </Alert>
                   </TableCell>
                 </TableRow>
@@ -725,8 +725,11 @@ export const WorkHoursTracker: React.FC = () => {
                         {startDate}
                         {startDate !== endDate && " - "}
                         {startDate !== endDate && endDate}
+                        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' } }}>
+                          {start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} – {end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                        </Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                         {start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
                         {" - "}
                         {end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
@@ -774,7 +777,7 @@ export const WorkHoursTracker: React.FC = () => {
       </Paper>
       
       {(isAdmin || isAnyBootswart) && (
-        <Paper sx={{ p: 3 }}>
+        <Paper sx={{ p: { xs: 2, sm: 3 } }}>
           {refreshing && (
             <LinearProgress sx={{ mb: 1 }} />
           )}
@@ -878,7 +881,7 @@ export const WorkHoursTracker: React.FC = () => {
           </Box>
 
           <TableContainer>
-            <Table>
+            <Table sx={{ '& th, & td': { px: { xs: 1, sm: 2 } } }}>
             <TableHead>
               <TableRow>
                 <TableCell sortDirection={sortKey === 'name' ? sortDir : false}>
@@ -899,9 +902,9 @@ export const WorkHoursTracker: React.FC = () => {
                     Fortschritt
                   </TableSortLabel>
                 </TableCell>
-                <TableCell align="right">Absolviert</TableCell>
-                <TableCell align="right">Geplant</TableCell>
-                <TableCell align="right" sortDirection={sortKey === 'remaining' ? sortDir : false}>
+                <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>Absolviert</TableCell>
+                <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>Geplant</TableCell>
+                <TableCell align="right" sortDirection={sortKey === 'remaining' ? sortDir : false} sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                   <TableSortLabel
                     active={sortKey === 'remaining'}
                     direction={sortKey === 'remaining' ? sortDir : 'asc'}
@@ -964,13 +967,13 @@ export const WorkHoursTracker: React.FC = () => {
                           </Typography>
                         </Box>
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                         {shortHumanizer(completedDuration)}
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                         {shortHumanizer(upcomingDuration)}
                       </TableCell>
-                      <TableCell align="right">{shortHumanizer(remaining)}</TableCell>
+                      <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{shortHumanizer(remaining)}</TableCell>
                       <TableCell>
                         <StatusChip overall={true} status={
                           status === 'paused'
@@ -988,13 +991,14 @@ export const WorkHoursTracker: React.FC = () => {
                     <TableRow>
                       <TableCell colSpan={6} sx={{ py: 0, border: 0 }}>
                         <Collapse in={expandedUser === user.id} timeout="auto" unmountOnExit>
-                          <Box sx={{ py: 1 }}>
+                          {/* width 0 + minWidth 100%: die Detailtabelle scrollt selbst und verbreitert die Übersicht nicht */}
+                          <Box sx={{ py: 1, width: 0, minWidth: '100%', overflowX: 'auto' }}>
                             <TableContainer>
                               <Table size="small">
                                 <TableHead>
                                   <TableRow>
                                     <TableCell>Datum</TableCell>
-                                    <TableCell>Zeit</TableCell>
+                                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Zeit</TableCell>
                                     <TableCell>Titel</TableCell>
                                     <TableCell>Dauer</TableCell>
                                     <TableCell>Status</TableCell>
@@ -1030,8 +1034,11 @@ export const WorkHoursTracker: React.FC = () => {
                                             {startDate}
                                             {startDate !== endDate && " - "}
                                             {startDate !== endDate && endDate}
+                                            <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' } }}>
+                                              {start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} – {end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                                            </Typography>
                                           </TableCell>
-                                          <TableCell>
+                                          <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                                             {start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
                                             {" - "}
                                             {end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}

@@ -31,6 +31,7 @@ import { syncPublicReservationFeed, deletePublicReservationFeed } from '../../do
 import { writeActivityLog } from '../../domain/activityLog';
 import { CopyReservationSeriesDialog } from './CopyReservationSeriesDialog';
 import { useMemberReservationEligibility } from '../../hooks/memberHooks';
+import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
 
 dayjs.locale('de');
 
@@ -58,6 +59,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   onUpdate,
   onCopy,
 }) => {
+  const dialogProps = useResponsiveDialogProps();
   const { database, currentUser, isAdmin, isSuperAdmin } = useApp();
   const { canReserve } = useMemberReservationEligibility();
   const [boat, setBoat] = useState<Boat | null>(null);
@@ -298,7 +300,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth {...dialogProps}>
       <Box sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', py: 3, px: 3 }}>
         {isEditing ? (
           <TextField
@@ -460,9 +462,9 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50' }}>
-        <Box sx={{ display: 'flex', gap: 2, width: '100%', justifyContent: 'space-between' }}>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+      <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, bgcolor: 'grey.50' }}>
+        <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap' }}>
             {(isOwner || isBootswartOrAdmin) && !['cancelled', 'rejected'].includes(reservation.status) && (
               <Button
                 color="error"
@@ -486,8 +488,8 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
               </Button>
             )}
           </Box>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap', justifyContent: 'flex-end', ml: 'auto' }}>
+            <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap' }}>
               {canEdit && !isEditing && (
                 <Button
                   color="primary"
@@ -525,7 +527,7 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
               )}
             </Box>
             {!isEditing && isBootswartOrAdmin && reservation.status === 'pending' && (
-              <Box sx={{ display: 'flex', gap: 2 }}>
+              <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap' }}>
                 <Button
                   onClick={() => handleStatusChange('rejected')}
                   color="warning"

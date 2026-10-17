@@ -27,6 +27,7 @@ import { useOverlappingReservations } from '../../hooks/useOverlappingReservatio
 import { syncPublicReservationFeed } from '../../domain/reservationSync';
 import { writeActivityLog } from '../../domain/activityLog';
 import { useMemberReservationEligibility } from '../../hooks/memberHooks';
+import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
 
 interface ReservationDialogProps {
   open: boolean;
@@ -54,6 +55,7 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
   endTime,
   onUpdate,
 }) => {
+  const dialogProps = useResponsiveDialogProps();
   const { database, currentUser, boats } = useApp();
   const { canReserve } = useMemberReservationEligibility();
   const { enqueueSnackbar } = useSnackbar();
@@ -165,7 +167,7 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth {...dialogProps}>
       <Box sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', py: 3, px: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }} color="primary.contrastText">
           Neue Reservierung
@@ -178,7 +180,7 @@ export const ReservationDialog: React.FC<ReservationDialogProps> = ({
               Für den gewählten Zeitraum gibt es bereits unverbindliche Vormerkungen. Eine finale Reservierung ist möglich, sollte aber abgestimmt werden.
             </Alert>
           )}
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
             <DateTimePicker
               label="Startzeit"
               value={formData.startTime}

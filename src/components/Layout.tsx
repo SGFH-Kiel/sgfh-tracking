@@ -40,9 +40,12 @@ import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { UserGuide } from './Onboarding/UserGuide';
 import { UserPreferencesDialog } from './UserPreferencesDialog';
 import { isSeasonModelActive } from '../domain/seasons';
+import { useIsMobile } from '../hooks/useIsMobile';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 export const Layout: React.FC = () => {
   const { isAdmin, isSuperAdmin, signOut, currentUser, systemConfig } = useApp();
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(Boolean(currentUser && (!currentUser.onboardingState || currentUser.onboardingState === 'not_started')));
@@ -97,8 +100,8 @@ export const Layout: React.FC = () => {
             color="inherit"
             edge="start"
             onClick={toggleDrawer}
-            sx={{ 
-              mr: 2,
+            sx={{
+              mr: { xs: 1, sm: 2 },
               color: 'white',
               '&:hover': {
                 backgroundColor: 'rgba(255, 255, 255, 0.1)'
@@ -125,15 +128,17 @@ export const Layout: React.FC = () => {
               separator={<NavigateNextIcon fontSize="small" sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />}
               aria-label="breadcrumb"
             >
-              <MuiLink
-                key={'home'}
-                color="inherit"
-                variant='h5'
-                onClick={() => navigate('/')} 
-                sx={{ color: 'rgba(255, 255, 255, 0.7)', textDecoration: 'none', cursor: 'pointer' }}
-              >
-                SGFH
-              </MuiLink>
+              {(!isMobile || breadcrumbs.length === 0) && (
+                <MuiLink
+                  key={'home'}
+                  color="inherit"
+                  variant='h5'
+                  onClick={() => navigate('/')}
+                  sx={{ color: 'rgba(255, 255, 255, 0.7)', textDecoration: 'none', cursor: 'pointer' }}
+                >
+                  SGFH
+                </MuiLink>
+              )}
               {breadcrumbs.map((crumb, index) => (
                 crumb.href ? (
                   <MuiLink
@@ -145,14 +150,14 @@ export const Layout: React.FC = () => {
                     {crumb.text}
                   </MuiLink>
                 ) : (
-                  <Typography key={index} sx={{ color: index === breadcrumbs.length - 1 ? 'white' : 'rgba(255, 255, 255, 0.7)' }}>
+                  <Typography key={index} noWrap sx={{ color: index === breadcrumbs.length - 1 ? 'white' : 'rgba(255, 255, 255, 0.7)', fontWeight: { xs: 500, sm: 400 } }}>
                     {crumb.text}
                   </Typography>
                 )
               ))}
             </Breadcrumbs>
           </Box>
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={{ xs: 0, sm: 1 }} sx={{ flexShrink: 0 }}>
             <IconButton
               onClick={() => setPrefsOpen(true)}
               sx={{
@@ -160,32 +165,46 @@ export const Layout: React.FC = () => {
                 '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)' }
               }}
               title={currentUser?.displayName}
+              aria-label="Meine Einstellungen"
             >
               <AccountCircleIcon />
             </IconButton>
-            <Button
-              color="inherit"
-              onClick={() => setGuideOpen(true)}
-              startIcon={<HelpOutlineIcon />}
-              sx={{
-                color: 'white',
-                '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)'
-                }
-              }}>
-              Hilfe
-            </Button>
-            <Button 
-              color="inherit" 
-              onClick={handleLogout}
-              sx={{ 
-                color: 'white',
-                '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)'
-                }
-              }}>
-              Abmelden
-            </Button>
+            {isMobile ? (
+              <>
+                <IconButton onClick={() => setGuideOpen(true)} sx={{ color: 'white' }} aria-label="Hilfe" title="Hilfe">
+                  <HelpOutlineIcon />
+                </IconButton>
+                <IconButton onClick={handleLogout} sx={{ color: 'white' }} aria-label="Abmelden" title="Abmelden">
+                  <LogoutIcon />
+                </IconButton>
+              </>
+            ) : (
+              <>
+                <Button
+                  color="inherit"
+                  onClick={() => setGuideOpen(true)}
+                  startIcon={<HelpOutlineIcon />}
+                  sx={{
+                    color: 'white',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                    }
+                  }}>
+                  Hilfe
+                </Button>
+                <Button
+                  color="inherit"
+                  onClick={handleLogout}
+                  sx={{
+                    color: 'white',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                    }
+                  }}>
+                  Abmelden
+                </Button>
+              </>
+            )}
           </Stack>
         </Toolbar>
       </AppBar>

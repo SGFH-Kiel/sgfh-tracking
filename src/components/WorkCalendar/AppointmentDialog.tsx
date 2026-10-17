@@ -19,6 +19,7 @@ import { WorkAppointment } from '../../types/models';
 import dayjs, { Dayjs } from 'dayjs';
 import { useApp } from '../../contexts/AppContext';
 import { DateTimePicker } from '@mui/x-date-pickers';
+import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
 
 interface AppointmentDialogProps {
   open: boolean;
@@ -37,6 +38,7 @@ export const AppointmentDialog: React.FC<AppointmentDialogProps> = ({
   endTime,
   appointment,
 }) => {
+  const dialogProps = useResponsiveDialogProps();
   const [formData, setFormData] = useState<{
     title: string;
     description: string;
@@ -126,7 +128,7 @@ export const AppointmentDialog: React.FC<AppointmentDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth {...dialogProps}>
       <Box sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', py: 3, px: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }} color="primary.contrastText">
           {appointment ? 'Arbeitstermin bearbeiten' : 'Neuer Arbeitstermin'}
@@ -153,7 +155,7 @@ export const AppointmentDialog: React.FC<AppointmentDialogProps> = ({
           rows={4}
           placeholder="Optionale Beschreibung"
         />
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
           <DateTimePicker
             label="Startzeit"
             value={formData.startTime}

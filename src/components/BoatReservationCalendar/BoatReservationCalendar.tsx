@@ -6,6 +6,7 @@ import {
   Box,
   Chip,
   Tooltip,
+  Button,
 } from '@mui/material';
 import { Calendar, dayjsLocalizer } from 'react-big-calendar';
 import dayjs from 'dayjs'
@@ -18,6 +19,8 @@ import { getContrastColor } from '../../utils/colors';
 import { ReservationDialog } from './ReservationDialog';
 import { ReservationDetailsDialog } from './ReservationDetailsDialog';
 import BlockIcon from '@mui/icons-material/Block';
+import AddIcon from '@mui/icons-material/Add';
+import { getDefaultNewSlot } from '../../hooks/useIsMobile';
 
 const localizer = dayjsLocalizer(dayjs);
 
@@ -169,20 +172,28 @@ export const BoatReservationCalendar: React.FC = () => {
             {boat.name}
           </Box>
         ))}
-        {isAdminOrSuperAdmin && (
-          <Tooltip title={showCancelled ? 'Stornierte Reservierungen ausblenden' : 'Stornierte Reservierungen anzeigen'}>
-            <Chip
-              icon={<BlockIcon />}
-              label="Stornierte"
-              size="small"
-              variant={showCancelled ? 'filled' : 'outlined'}
-              color={showCancelled ? 'default' : 'default'}
-              onClick={handleToggleCancelled}
-              disabled={togglingCancelled}
-              sx={{ ml: 'auto', opacity: showCancelled ? 1 : 0.6 }}
-            />
-          </Tooltip>
-        )}
+        <Box sx={{ ml: 'auto', display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          {isAdminOrSuperAdmin && (
+            <Tooltip title={showCancelled ? 'Stornierte Reservierungen ausblenden' : 'Stornierte Reservierungen anzeigen'}>
+              <Chip
+                icon={<BlockIcon />}
+                label="Stornierte"
+                size="small"
+                variant={showCancelled ? 'filled' : 'outlined'}
+                color={showCancelled ? 'default' : 'default'}
+                onClick={handleToggleCancelled}
+                disabled={togglingCancelled}
+                sx={{ opacity: showCancelled ? 1 : 0.6 }}
+              />
+            </Tooltip>
+          )}
+          {/* Neue Reservierung ohne Slot-Auswahl – auf Touch-Geräten sonst nur per langem Druck erreichbar. */}
+          {currentUser && (
+            <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => handleSelectSlot(getDefaultNewSlot())}>
+              {canReserve ? 'Reservieren' : 'Vormerken'}
+            </Button>
+          )}
+        </Box>
       </Box>
 
       <Box
@@ -195,6 +206,7 @@ export const BoatReservationCalendar: React.FC = () => {
           localizer={localizer}
           events={reservations}
           longPressThreshold={100}
+          scrollToTime={new Date(1970, 0, 1, 7, 0, 0)}
           eventPropGetter={(event, ...props) => {
             const boat = boats.find(b => b.id === event.boatId);
             const baseColor = event.status === 'draft'

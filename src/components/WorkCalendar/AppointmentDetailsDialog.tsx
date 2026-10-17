@@ -48,6 +48,7 @@ import {
 } from '../../domain/seasons';
 import { useDefaultSeason } from '../../hooks/memberHooks';
 import { SeasonChip, SeasonSelect } from '../Members/SeasonFields';
+import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
 
 dayjs.locale('de');
 
@@ -68,6 +69,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   onUpdate,
   onCopy,
 }) => {
+  const dialogProps = useResponsiveDialogProps();
   const { isAdmin, isSuperAdmin, database, boats, currentUser, systemConfig } = useApp();
   const { enqueueSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(false);
@@ -467,12 +469,12 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   }, 500), [database, getLatestAppointment, onUpdate]);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth {...dialogProps}>
       <Box sx={{
         bgcolor: 'primary.main',
         color: 'primary.contrastText',
-        py: 3,
-        px: 3,
+        py: { xs: 2, sm: 3 },
+        px: { xs: 2, sm: 3 },
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start'
@@ -562,19 +564,21 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
               </Tooltip>
             )}
           </Box>
-          <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 'normal' }} color="primary.contrastText">
-            {dayjs(appointment.startTime).format('dddd, DD. MMMM YYYY')} - {dayjs(appointment.endTime).format('dddd, DD. MMMM YYYY')}
+          <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 'normal', fontSize: { xs: '1rem', sm: '1.25rem' } }} color="primary.contrastText">
+            {dayjs(appointment.startTime).isSame(appointment.endTime, 'day')
+              ? dayjs(appointment.startTime).format('dddd, DD. MMMM YYYY')
+              : `${dayjs(appointment.startTime).format('dd, DD.MM.YYYY')} – ${dayjs(appointment.endTime).format('dd, DD.MM.YYYY')}`}
           </Typography>
         </Box>
       </Box>
 
       <DialogContent sx={{ p: 0 }}>
         <Box sx={{ 
-          bgcolor: 'grey.50', 
-          p: 3, 
+          bgcolor: 'grey.50',
+          p: { xs: 2, sm: 3 },
           borderRadius: 1,
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2, flexDirection: { xs: isEditing ? 'column' : 'row', sm: 'row' }, '& > *': { width: { xs: isEditing ? '100%' : 'auto', sm: 'auto' } } }}>
             {isEditing ? (
               <>
                 <DateTimePicker
@@ -916,7 +920,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
           </>
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
+      <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, bgcolor: 'grey.50', flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
         {showJoinSeasonSelect && !isEditing && (
           <SeasonSelect
             size="small"
@@ -929,8 +933,8 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
             disabled={ownSeasonInfo.loading}
           />
         )}
-        <Box sx={{ display: 'flex', gap: 2, width: '100%', justifyContent: 'space-between', ml: '0 !important' }}>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, width: '100%', justifyContent: 'space-between', flexWrap: 'wrap', ml: '0 !important' }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {(canEdit || canDeleteOwnPrivate) && onDelete && !isEditing && (
               <Button
                 color="error"
@@ -954,7 +958,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
               </Button>
             )}
           </Box>
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap', justifyContent: 'flex-end', ml: 'auto' }}>
             {canEdit && !isEditing && (
               <Button
                 color="primary"

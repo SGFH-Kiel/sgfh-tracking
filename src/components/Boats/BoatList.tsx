@@ -36,8 +36,10 @@ import { Boat, User } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
 import { writeActivityLog } from '../../domain/activityLog';
 import { getRandomBoatColor } from '../../utils/colors';
+import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
 
 export const BoatList: React.FC = () => {
+  const dialogProps = useResponsiveDialogProps();
   const { isAdmin, database, currentUser, boats, reloadBoats } = useApp();
   const { setBreadcrumbs } = usePageTitle();
   const [open, setOpen] = useState(false);
@@ -182,7 +184,7 @@ export const BoatList: React.FC = () => {
 
   return (
     <Paper sx={{ p: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 2 }}>
         <Typography variant="h5">Boote</Typography>
         {isAdmin && (
           <Button
@@ -200,9 +202,9 @@ export const BoatList: React.FC = () => {
           <TableHead>
             <TableRow>
               <TableCell width="20%">Boot</TableCell>
-              <TableCell width="30%">Beschreibung</TableCell>
-              <TableCell width="15%">Bootswart</TableCell>
-              <TableCell width="15%">Genehmigung</TableCell>
+              <TableCell width="30%" sx={{ display: { xs: 'none', md: 'table-cell' } }}>Beschreibung</TableCell>
+              <TableCell width="15%" sx={{ display: { xs: 'none', md: 'table-cell' } }}>Bootswart</TableCell>
+              <TableCell width="15%" sx={{ display: { xs: 'none', md: 'table-cell' } }}>Genehmigung</TableCell>
               <TableCell width="10%">Status</TableCell>
               {(isAdmin || isAnyBootswart) && <TableCell width="10%">Aktionen</TableCell>}
             </TableRow>
@@ -222,14 +224,18 @@ export const BoatList: React.FC = () => {
                     />
                     {boat.name}
                   </Box>
+                  {/* Auf Smartphones stehen Beschreibung und Genehmigungspflicht unter dem Namen. */}
+                  <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', md: 'none' }, mt: 0.5 }}>
+                    {[boat.description, boat.requiresApproval ? 'Genehmigung erforderlich' : null].filter(Boolean).join(' · ')}
+                  </Typography>
                 </TableCell>
-                <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{boat.description}</TableCell>
-                <TableCell>
+                <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: { xs: 'none', md: 'table-cell' } }}>{boat.description}</TableCell>
+                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                   {boat.bootswart ? users.find(u => u.id === boat.bootswart)?.displayName : '-'}
                   {boat.bootswart2 && (
                     <><br />{users.find(u => u.id === boat.bootswart2)?.displayName}</>)}
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                   {boat.requiresApproval ? 'Erforderlich' : 'Nicht erforderlich'}
                 </TableCell>
                 <TableCell>
@@ -255,7 +261,7 @@ export const BoatList: React.FC = () => {
         </Table>
       </TableContainer>
 
-      <Dialog open={open} onClose={handleClose}>
+      <Dialog open={open} onClose={handleClose} fullWidth {...dialogProps}>
         <DialogTitle>
           {editingBoat ? 'Boot bearbeiten' : 'Neues Boot hinzufügen'}
         </DialogTitle>
