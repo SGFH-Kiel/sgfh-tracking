@@ -25,3 +25,7 @@ Der Status wird pro Benutzer im Feld `onboardingState` gespeichert:
 - `not_started`
 - `skipped`
 - `completed`
+
+## Neuigkeiten
+
+Änderungen an der App werden nicht im Benutzerhandbuch, sondern unter **Neuigkeiten** angekündigt (siehe `docs/changelog.md`).

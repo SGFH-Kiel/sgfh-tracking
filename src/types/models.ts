@@ -15,6 +15,7 @@ export enum UserRole {
 export interface UserPreferences {
   calendarDefaults?: Partial<CalendarDefaults>;
   showCancelledReservations?: boolean;
+  seenChangelogIds?: string[]; // IDs gelesener Einträge unter „Neuigkeiten“
 }
 
 export type ActivityEntityType = 'reservation' | 'workHour' | 'boat' | 'member' | 'system';

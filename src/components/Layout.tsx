@@ -17,6 +17,7 @@ import {
   Breadcrumbs,
   Link as MuiLink,
   Stack,
+  Badge,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
@@ -41,11 +42,16 @@ import { UserGuide } from './Onboarding/UserGuide';
 import { UserPreferencesDialog } from './UserPreferencesDialog';
 import { isSeasonModelActive } from '../domain/seasons';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useChangelog } from '../hooks/useChangelog';
+import { ChangelogView } from './Changelog/ChangelogView';
+import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import LogoutIcon from '@mui/icons-material/Logout';
 
 export const Layout: React.FC = () => {
   const { isAdmin, isSuperAdmin, signOut, currentUser, systemConfig } = useApp();
   const isMobile = useIsMobile();
+  const { unseen: unseenChangelog } = useChangelog();
+  const unseenChangelogCount = currentUser ? unseenChangelog.length : 0;
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(Boolean(currentUser && (!currentUser.onboardingState || currentUser.onboardingState === 'not_started')));
@@ -67,6 +73,15 @@ export const Layout: React.FC = () => {
   const menuItems = [
     { text: 'Kalender', icon: <CalendarMonthIcon />, path: '/' },
     { text: 'Arbeitsstunden', icon: <Handyman />, path: '/hours' },
+    {
+      text: 'Neuigkeiten',
+      icon: (
+        <Badge color="error" badgeContent={unseenChangelogCount} invisible={unseenChangelogCount === 0}>
+          <NewReleasesIcon />
+        </Badge>
+      ),
+      path: '/changelog',
+    },
     ...(isAdmin ? [
       { text: 'Bootsverwaltung', icon: <DirectionsBoatIcon />, path: '/boats' },
       { text: 'Mitgliederverwaltung', icon: <GroupIcon />, path: '/members' },
@@ -100,6 +115,7 @@ export const Layout: React.FC = () => {
             color="inherit"
             edge="start"
             onClick={toggleDrawer}
+            aria-label={unseenChangelogCount > 0 ? `Menü (${unseenChangelogCount} Neuigkeiten)` : 'Menü'}
             sx={{
               mr: { xs: 1, sm: 2 },
               color: 'white',
@@ -108,7 +124,9 @@ export const Layout: React.FC = () => {
               }
             }}
           >
-            <MenuIcon />
+            <Badge color="error" variant="dot" invisible={unseenChangelogCount === 0} overlap="circular">
+              <MenuIcon />
+            </Badge>
           </IconButton>
           <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
             <Breadcrumbs
@@ -275,6 +293,7 @@ export const Layout: React.FC = () => {
           <Routes>
             <Route path="/" element={<CalendarTabs />} />
             <Route path="/hours" element={<WorkHoursTracker />} />
+            <Route path="/changelog" element={<ChangelogView />} />
             {isAdmin && (
               <>
                 <Route path="/boats" element={<BoatList />} />

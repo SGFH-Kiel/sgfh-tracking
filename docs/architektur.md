@@ -22,6 +22,8 @@ Die Anwendung besteht aus einem React-Frontend mit TypeScript und Firebase als B
   - Saisonmodell: Zuordnung von Einträgen zu Saisons, Altmodus über `yearChangeDate`, Standard-Saison, Backfill-Planung
 - `src/components/Admin/SeasonControl.tsx`
   - Saisonsteuerung (Backfill, Aktivierung, Saisonwechsel)
+- `src/changelog.ts` + `src/components/Changelog/ChangelogView.tsx`
+  - „Neuigkeiten“: Changelog aller Änderungen für alle Nutzer (Pflege siehe `docs/changelog.md`)
 - `src/domain/reservations.ts`
   - Konfliktprüfung, Statusmodell und öffentlicher Feed
 
