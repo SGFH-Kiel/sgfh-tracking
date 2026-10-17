@@ -26,7 +26,26 @@ node scripts/backup-firestore.mjs
 # Output: ./backup/2025-06-01T02-00-00/
 ```
 
-### Restore lokal ausführen
+### Backup per npm-Skript
+
+`npm run backup` liest die Umgebung aus `.env.backup` (nicht im Repository, per `.gitignore` ausgeschlossen), z. B.:
+
+```bash
+FIREBASE_PROJECT_ID=sgfh-tracking
+GOOGLE_APPLICATION_CREDENTIALS=account.json
+```
+
+`account.json` (Service-Account-Schlüssel) und der Ordner `/backup` sind ebenfalls ausgeschlossen. Ein leeres oder ungültiges `FIREBASE_SERVICE_ACCOUNT` führt zu einer klaren Fehlermeldung bzw. zum Rückfall auf die Standard-Anmeldedaten.
+
+### Backup in den lokalen Emulator einspielen
+
+```bash
+npm run restore -- backup/2025-06-01T02-00-00
+```
+
+`npm run restore` liest `.env.emulator` (`USE_EMULATOR=true`, `SKIP_WAIT=true`, Projekt `sgfh-tracking-test`) und schreibt deshalb **immer in den lokalen Emulator** (Port 9099) – nie in die Produktion. Unter Windows geht das auch direkt beim Start: `npm run dev:win -- -BackupDir backup/<Zeitstempel>`.
+
+### Restore lokal ausführen (Produktion)
 
 ```bash
 # Dry Run (empfohlen zuerst)

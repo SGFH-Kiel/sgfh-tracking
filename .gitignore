@@ -17,6 +17,11 @@
 .env.development.local
 .env.test.local
 .env.production.local
+.env.backup
+account.json
+
+# local Firestore backups (production data)
+/backup
 
 npm-debug.log*
 yarn-debug.log*

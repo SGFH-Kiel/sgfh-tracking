@@ -14,6 +14,8 @@
  *   FIREBASE_PROJECT_ID       - Firebase project ID (required)
  *   FIREBASE_SERVICE_ACCOUNT  - Service account JSON as string (for CI)
  *   DRY_RUN                   - Set to "true" to validate without writing
+ *   USE_EMULATOR              - Set to "true" to write to the local Firestore emulator (localhost:9099)
+ *   SKIP_WAIT                 - Set to "true" to skip the 5-second abort countdown
  *
  * Example:
  *   FIREBASE_PROJECT_ID=sgfh-tracking node scripts/restore-firestore.mjs backup/2025-06-01T02-00-00
@@ -30,17 +32,25 @@ if (!PROJECT_ID) {
 }
 
 const DRY_RUN = process.env.DRY_RUN === 'true';
+const USE_EMULATOR = process.env.USE_EMULATOR === 'true';
+const SKIP_WAIT = process.env.SKIP_WAIT === 'true';
 
 const backupDir = process.argv[2];
 if (!backupDir) {
   console.error('❌ Usage: node scripts/restore-firestore.mjs <backup-dir>');
   console.error('   Example: node scripts/restore-firestore.mjs backup/2025-06-01T02-00-00');
+  console.error('   For emulator: USE_EMULATOR=true node scripts/restore-firestore.mjs backup/2025-06-01T02-00-00');
   process.exit(1);
 }
 
 if (!existsSync(backupDir)) {
   console.error(`❌ Backup directory not found: ${backupDir}`);
   process.exit(1);
+}
+
+// Point Admin SDK at the local Firestore emulator — must be set before initializeApp
+if (USE_EMULATOR && !process.env.FIRESTORE_EMULATOR_HOST) {
+  process.env.FIRESTORE_EMULATOR_HOST = 'localhost:9099';
 }
 
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -55,10 +65,8 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT) {
 
 const db = admin.firestore();
 
-// Configure emulator if specified
-if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
-  process.env.FIRESTORE_EMULATOR_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST;
-  db.settings({ host: process.env.FIREBASE_AUTH_EMULATOR_HOST, ssl: false });
+if (process.env.FIRESTORE_EMULATOR_HOST) {
+  console.log(`🔌 Connecting to Firestore emulator at ${process.env.FIRESTORE_EMULATOR_HOST}`);
 }
 
 /**
@@ -126,7 +134,7 @@ async function main() {
   }
   console.log('');
 
-  if (!DRY_RUN) {
+  if (!DRY_RUN && !SKIP_WAIT) {
     console.log('⚠️  This will OVERWRITE existing documents. Press Ctrl+C within 5 seconds to abort.\n');
     await new Promise(resolve => setTimeout(resolve, 5000));
   }

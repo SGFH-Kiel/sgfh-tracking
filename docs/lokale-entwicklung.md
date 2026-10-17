@@ -23,6 +23,22 @@ Dieser Befehl führt automatisch aus:
 4. **React-App** — startet die App unter http://localhost:3000 mit Emulator-Konfiguration
 5. **Aufräumen** — beim Beenden (`Ctrl+C`) werden die Emulatoren sauber gestoppt
 
+### Windows (PowerShell)
+
+```bash
+npm run dev:win
+```
+
+`scripts/dev-local.ps1` macht dasselbe unter Windows: Es sucht ein Java 11+ (`JAVA_HOME`, `java` im PATH oder das JDK von Android Studio), startet die Emulatoren in einem eigenen Fenster, spielt die Testdaten ein und startet die App (`npm run start:emulator`). Laufen die Emulatoren bereits, werden sie wiederverwendet.
+
+Optionen:
+
+- `npm run dev:win -- -BackupDir backup/<Zeitstempel>` – spielt zusätzlich ein lokales Backup in den Emulator ein (nach den Testdaten, damit die Backup-Dokumente gewinnen). Auth-Nutzer sind nicht Teil des Backups; angemeldet wird weiterhin mit den Test-Accounts.
+- `-SkipSeed` – keine Testdaten einspielen
+- `-SkipRestore` – Backup-Parameter ignorieren
+
+Backups enthalten Produktionsdaten und liegen deshalb in `/backup`, das per `.gitignore` ausgeschlossen ist.
+
 ## Emulator-UI
 
 Die Firebase Emulator-Oberfläche ist unter **http://localhost:4000** erreichbar und bietet:

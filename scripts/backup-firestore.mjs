@@ -25,12 +25,17 @@ if (!PROJECT_ID) {
 }
 
 // Support service account JSON passed as an env var string (GitHub Actions secret)
-if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    projectId: PROJECT_ID,
-  });
+if (process.env.FIREBASE_SERVICE_ACCOUNT && process.env.FIREBASE_SERVICE_ACCOUNT.trim()) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: PROJECT_ID,
+    });
+  } catch (err) {
+    console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT:', err.message);
+    process.exit(1);
+  }
 } else {
   // Falls back to GOOGLE_APPLICATION_CREDENTIALS or Application Default Credentials
   admin.initializeApp({ projectId: PROJECT_ID });
