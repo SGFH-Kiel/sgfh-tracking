@@ -60,6 +60,17 @@ Wird für jeden Nutzer in `/users/{userId}.preferences` gespeichert. Standardwer
 - **Tab 1 – Aktuelle Übersicht**: Lädt Reservierungen, Arbeitsstunden, Boote und Mitglieder aus Firestore; filtert nach Entitätstyp, Zeitraum, Status und Sichtbarkeit.
 - **Tab 2 – Audit-Log**: Lädt Einträge aus der `activityLog`-Collection mit serverseitigem Zeitraumfilter (Standard: Anfang des aktuellen Monats); filtert zusätzlich nach Aktionstyp.
 
+### Lesbares Aktivitätslog (v2)
+
+In der neuen Oberfläche (`ActivityTrackingView logVariant="readable"`) wird der Tab „Aktivitätslog“ als Liste dargestellt (`src/v2/components/ActivityLogList.tsx`):
+
+- nach Tag gruppiert („Heute“, „Gestern“, Datum); in der Zeile die Uhrzeit, der genaue Zeitstempel als Tooltip
+- ein Satz pro Ereignis plus Akteur, Kategorie als Symbol
+- aufklappbar: Felder mit deutschen Bezeichnungen und „vorher → nachher“, Objekt-ID mit Kopieren-Button, optional Rohdaten als formatiertes JSON
+- Volltextsuche über Satz, Akteur und Feldwerte
+
+Die Formatierung steckt in `src/domain/activityFormat.ts`, einer reinen und getesteten Funktion mit einem Formatierer pro `ActivityType`. **Neue Ereignistypen bekommen dort einen Formatierer.** Ohne Formatierer erscheinen Typ und Felder generisch, gehen also nicht verloren. Die klassische Ansicht zeigt weiterhin die Tabelle.
+
 ### `writeActivityLog` (`src/domain/activityLog.ts`)
 
 Hilfsfunktion zum Erstellen von Audit-Log-Einträgen:

@@ -11,6 +11,27 @@ import { ChangelogEntry } from './domain/changelog';
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-10-18-updates-aktivitaetslog',
+    date: '2026-10-18',
+    title: 'Zuverlässige Updates und lesbares Aktivitätslog',
+    type: 'improvement',
+    sections: [
+      {
+        audience: 'all',
+        items: [
+          'Ist eine neue Version der App verfügbar, erscheint „Neue Version verfügbar – Neu laden“ – auch wenn die App länger geöffnet war oder aus dem Hintergrund zurückgeholt wird.',
+        ],
+      },
+      {
+        audience: 'admin',
+        items: [
+          'Neue Oberfläche: Das Aktivitätslog zeigt jede Aktion als verständlichen Satz (z. B. „Max bei „Bootsputztag“ bestätigt“), nach Tagen gruppiert und durchsuchbar.',
+          'Details wie „Status: Offen → Bestätigt“, die Objekt-ID (zum Kopieren) und die Rohdaten erscheinen erst beim Aufklappen.',
+        ],
+      },
+    ],
+  },
+{
     id: '2026-10-18-tour-mitgliederstunden',
     date: '2026-10-18',
     title: 'Kurzanleitung und Mitgliederstunden in der neuen Oberfläche',

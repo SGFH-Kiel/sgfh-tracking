@@ -27,6 +27,7 @@ import { Refresh as RefreshIcon } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs, { Dayjs } from 'dayjs';
 import { useApp } from '../../contexts/AppContext';
+import { ActivityLogList } from '../../v2/components/ActivityLogList';
 import { QueryFilter } from '../../services/interfaces/database';
 import { usePageTitle } from '../../contexts/PageTitleContext';
 import {
@@ -121,7 +122,11 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
   </div>
 );
 
-export const ActivityTrackingView: React.FC = () => {
+/**
+ * `logVariant="readable"` (v2) zeigt das Aktivitätslog als lesbare, gruppierte Liste;
+ * die klassische Ansicht behält die Tabelle.
+ */
+export const ActivityTrackingView: React.FC<{ logVariant?: 'table' | 'readable' }> = ({ logVariant = 'table' }) => {
   const { database, boats } = useApp();
   const { setBreadcrumbs } = usePageTitle();
 
@@ -581,7 +586,11 @@ export const ActivityTrackingView: React.FC = () => {
         {logLoading && <CircularProgress size={24} />}
         {logError && <Alert severity="error">{logError}</Alert>}
 
-        {!logLoading && !logError && (
+        {!logLoading && !logError && logVariant === 'readable' && (
+          <ActivityLogList entries={filteredLogEntries} boats={boats} />
+        )}
+
+        {!logLoading && !logError && logVariant === 'table' && (
           <>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               {filteredLogEntries.length} Einträge

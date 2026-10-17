@@ -257,7 +257,7 @@ const V2ShellInner: React.FC = () => {
             <>
               <Route path="/boats" element={<BoatList />} />
               <Route path="/members" element={<MemberList />} />
-              <Route path="/tracking" element={<ActivityTrackingView />} />
+              <Route path="/tracking" element={<ActivityTrackingView logVariant="readable" />} />
             </>
           )}
           {canSeeSettings && <Route path="/settings" element={<SystemConfig />} />}

@@ -19,7 +19,8 @@ Stand: 17.10.2026
   - Seitenaufrufe: zuerst Netzwerk, ohne Verbindung die zwischengespeicherte App.
   - Gehashte Build-Dateien (`/static/…`): zuerst Cache.
   - Firestore- und Anmelde-Anfragen (fremde Domains) werden nie zwischengespeichert. Daten kommen immer live aus Firestore.
-  - Neue Versionen übernehmen beim nächsten Neuladen. Die App bietet „Neu laden“ an, sobald ein Update bereitsteht.
+  - Neue Versionen übernehmen beim nächsten Neuladen. Weil Seitenaufrufe zuerst aus dem Netz kommen, startet eine installierte App mit Verbindung immer in der aktuellen Version.
+  - Bei länger geöffneter App (z. B. aus dem Hintergrund zurückgeholt) vergleicht die App beim Zurückholen und stündlich das laufende Bundle mit `asset-manifest.json` und zeigt „Neue Version verfügbar – Neu laden“. Änderungen am Service Worker selbst werden zusätzlich über den Service-Worker-Update-Mechanismus erkannt.
 - `src/pwa/`: Registrierung des Service Workers (nur im Produktions-Build), Erkennung von Installierbarkeit und Standalone-Modus, iOS-Anleitung.
 - „App installieren“ erscheint als Symbol in der Kopfzeile (v1 und v2), in v2 zusätzlich unter „Mehr“ und als Karte in der Übersicht. Angeboten wird die Installation **nur, wenn der Service Worker erfolgreich läuft** (`navigator.serviceWorker.ready`). Im Entwicklungsmodus (`npm start`) und in Browsern ohne Service-Worker-Unterstützung bleibt sie deshalb ausgeblendet.
 - Anmeldung: Im installierten Modus bleibt man angemeldet (lokale Persistenz). Im Browser gilt wie bisher die Sitzung.

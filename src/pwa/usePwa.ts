@@ -27,7 +27,7 @@ export const usePwa = (): PwaInfo => {
     canPromptInstall,
     needsIosInstructions,
     installable: canPromptInstall || needsIosInstructions,
-    updateAvailable: !!state.waitingWorker,
+    updateAvailable: !!state.waitingWorker || state.newVersionAvailable,
     promptInstall,
     applyUpdate,
   };

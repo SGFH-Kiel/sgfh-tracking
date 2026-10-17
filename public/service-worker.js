@@ -54,6 +54,8 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // Versionsprüfung der App (asset-manifest.json) und ausdrücklich ungecachte Anfragen immer direkt ans Netz
+  if (request.cache === 'no-store' || url.pathname === '/asset-manifest.json') return;
 
   if (request.mode === 'navigate') {
     event.respondWith(

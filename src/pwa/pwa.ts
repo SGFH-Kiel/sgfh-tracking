@@ -14,9 +14,11 @@ interface PwaState {
   waitingWorker: ServiceWorker | null;
   /** Service Worker erfolgreich registriert und aktiv – Voraussetzung für das Anbieten der Installation. */
   serviceWorkerReady: boolean;
+  /** Auf dem Server liegt eine neuere App-Version als die gerade laufende. */
+  newVersionAvailable: boolean;
 }
 
-let state: PwaState = { installPrompt: null, installed: false, waitingWorker: null, serviceWorkerReady: false };
+let state: PwaState = { installPrompt: null, installed: false, waitingWorker: null, serviceWorkerReady: false, newVersionAvailable: false };
 const listeners = new Set<() => void>();
 
 function setState(patch: Partial<PwaState>) {
@@ -67,13 +69,60 @@ export async function promptInstall(): Promise<boolean> {
   return choice.outcome === 'accepted';
 }
 
-/** Aktiviert einen wartenden Service Worker; die Seite lädt danach automatisch neu. */
+/** Aktiviert einen wartenden Service Worker bzw. lädt die neue App-Version. */
 export function applyUpdate(): void {
-  state.waitingWorker?.postMessage({ type: 'SKIP_WAITING' });
+  if (state.waitingWorker) {
+    // Die Seite lädt nach dem Wechsel des Service Workers automatisch neu (controllerchange).
+    state.waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+    return;
+  }
+  window.location.reload();
+}
+
+const VERSION_CHECK_MIN_INTERVAL_MS = 5 * 60 * 1000;
+let lastVersionCheck = 0;
+
+/** Pfad des aktuell laufenden Haupt-Bundles (Dateiname enthält den Build-Hash). */
+function currentMainBundlePath(): string | null {
+  const script = document.querySelector<HTMLScriptElement>('script[src*="/static/js/main."]');
+  return script ? new URL(script.src).pathname : null;
+}
+
+/**
+ * Erkennt neue Deployments auch bei lange geöffneter App (z. B. aus dem Hintergrund zurückgeholt):
+ * Vergleicht das laufende Bundle mit `asset-manifest.json` des Servers.
+ */
+async function checkForNewVersion(): Promise<void> {
+  const now = Date.now();
+  if (state.newVersionAvailable || now - lastVersionCheck < VERSION_CHECK_MIN_INTERVAL_MS || !navigator.onLine) return;
+  lastVersionCheck = now;
+  const running = currentMainBundlePath();
+  if (!running) return;
+  try {
+    const response = await fetch(`${process.env.PUBLIC_URL}/asset-manifest.json`, { cache: 'no-store' });
+    if (!response.ok) return;
+    const manifest = await response.json() as { files?: Record<string, string> };
+    const deployed = manifest.files?.['main.js'];
+    if (deployed && new URL(deployed, window.location.origin).pathname !== running) {
+      setState({ newVersionAvailable: true });
+    }
+  } catch {
+    // offline oder Server nicht erreichbar – beim nächsten Mal erneut versuchen
+  }
+}
+
+function startVersionWatch(): void {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForNewVersion();
+  });
+  window.setInterval(checkForNewVersion, 60 * 60 * 1000);
 }
 
 export function registerServiceWorker(): void {
-  if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return;
+  if (process.env.NODE_ENV !== 'production') return;
+  // Versionsprüfung unabhängig vom Service Worker – auch normale Browser-Tabs profitieren davon.
+  startVersionWatch();
+  if (!('serviceWorker' in navigator)) return;
 
   window.addEventListener('load', () => {
     navigator.serviceWorker
