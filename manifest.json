@@ -1,20 +1,26 @@
 {
-  "short_name": "SGFH Tracking",
-  "name": "Time Tracking and Member Management",
-  "icons": [
-    {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
-    },
-    {
-      "src": "logo192.png",
-      "type": "image/png",
-      "sizes": "192x192"
-    }
-  ],
-  "start_url": ".",
+  "id": "/",
+  "short_name": "SGFH",
+  "name": "SGFH Stundenzettel",
+  "description": "Arbeitsstunden, Arbeitstermine und Bootsreservierungen der Segelgruppe an der Fachhochschule Kiel",
+  "lang": "de",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "orientation": "any",
+  "theme_color": "#1B4965",
+  "background_color": "#F7F9FB",
+  "categories": ["sports", "productivity"],
+  "icons": [
+    { "src": "favicon.ico", "sizes": "48x48 32x32", "type": "image/x-icon" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Arbeitsstunden", "short_name": "Stunden", "url": "/hours", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Kalender", "short_name": "Kalender", "url": "/", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+  ]
 }
