@@ -13,7 +13,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     id: '2026-10-18-neue-oberflaeche',
     date: '2026-10-18',
-    title: 'Neue Oberfläche (Vorschau)',
+    title: 'Neue Oberfläche',
     type: 'feature',
     summary: 'Eine überarbeitete Oberfläche für Smartphone und Computer – mit Übersicht, schnellerer Navigation und einem Prüf-Eingang für Bootswarte und Admins.',
     sections: [
@@ -59,7 +59,8 @@ export const CHANGELOG: ChangelogEntry[] = [
         audience: 'all',
         items: [
           'Die Seite lässt sich als App installieren – mit eigenem Symbol auf dem Startbildschirm und im Vollbild.',
-          'Android und Computer (Chrome/Edge): „App installieren“ im Menü. iPhone/iPad: in Safari „Teilen“ → „Zum Home-Bildschirm“ (die App zeigt eine Anleitung).',
+          'Android und Computer (Chrome/Edge): Symbol „App installieren“ oben rechts in der Kopfzeile. iPhone/iPad: in Safari „Teilen“ → „Zum Home-Bildschirm“ (die App zeigt eine Anleitung).',
+          'Die Installation wird nur angeboten, wenn Ihr Browser sie vollständig unterstützt.',
           'In der installierten App bleiben Sie angemeldet. Ohne Verbindung startet die App weiterhin; Daten werden geladen, sobald wieder eine Verbindung besteht.',
           'Steht eine neue Version bereit, bietet die App „Neu laden“ an.',
         ],

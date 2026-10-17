@@ -6,7 +6,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   Snackbar,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import {
@@ -86,6 +88,22 @@ export const useInstallAction = (): { installable: boolean; install: () => void;
     install,
     dialog: <IosInstallDialog open={iosOpen} onClose={() => setIosOpen(false)} />,
   };
+};
+
+/** Kompaktes Symbol für App-Leisten (weiß auf Vereinsblau). */
+export const InstallAppIconButton: React.FC = () => {
+  const { installable, install, dialog } = useInstallAction();
+  if (!installable) return null;
+  return (
+    <>
+      <Tooltip title="App installieren">
+        <IconButton onClick={install} aria-label="App installieren" sx={{ color: 'white', '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)' } }}>
+          <InstallIcon />
+        </IconButton>
+      </Tooltip>
+      {dialog}
+    </>
+  );
 };
 
 export const InstallAppButton: React.FC<{ variant?: 'text' | 'outlined' | 'contained'; fullWidth?: boolean }> = ({ variant = 'outlined', fullWidth }) => {

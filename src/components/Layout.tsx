@@ -44,7 +44,7 @@ import { isSeasonModelActive } from '../domain/seasons';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useChangelog } from '../hooks/useChangelog';
 import { TryV2Banner } from './TryV2Banner';
-import { InstallAppButton } from '../pwa/PwaComponents';
+import { InstallAppIconButton } from '../pwa/PwaComponents';
 import { ChangelogView } from './Changelog/ChangelogView';
 import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -178,6 +178,7 @@ export const Layout: React.FC = () => {
             </Breadcrumbs>
           </Box>
           <Stack direction="row" spacing={{ xs: 0, sm: 1 }} sx={{ flexShrink: 0 }}>
+            <InstallAppIconButton />
             <IconButton
               onClick={() => setPrefsOpen(true)}
               sx={{
@@ -266,10 +267,7 @@ export const Layout: React.FC = () => {
           role="presentation" 
           onClick={toggleDrawer}
         >
-          <Box sx={{ px: 2, pb: 1 }} onClick={(e) => e.stopPropagation()}>
-            <InstallAppButton fullWidth />
-          </Box>
-          <List>
+<List>
             {menuItems.map((item) => (
               <ListItem key={item.text}>
                 <ListItemButton

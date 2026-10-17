@@ -28,8 +28,7 @@ import {
   CalendarMonth as CalendarIcon,
   DirectionsBoat as BoatIcon,
   FactCheck as ReviewIcon,
-  GetApp as InstallIcon,
-  Group as MembersIcon,
+Group as MembersIcon,
   Handyman as HoursIcon,
   HelpOutline as HelpIcon,
   Home as HomeIcon,
@@ -46,7 +45,7 @@ import { usePageTitle } from '../contexts/PageTitleContext';
 import { useChangelog } from '../hooks/useChangelog';
 import { useUiVersion } from '../hooks/useUiVersion';
 import { isSeasonModelActive } from '../domain/seasons';
-import { useInstallAction } from '../pwa/PwaComponents';
+import { InstallAppIconButton } from '../pwa/PwaComponents';
 import { UserGuide } from '../components/Onboarding/UserGuide';
 import { UserPreferencesDialog } from '../components/UserPreferencesDialog';
 import { CalendarTabs } from '../components/Calendar/CalendarTabs';
@@ -91,8 +90,7 @@ const V2ShellInner: React.FC = () => {
   const { unseen } = useChangelog();
   const { setVersion } = useUiVersion();
   const reviewCount = useReviewCounts().total;
-  const { installable, install, dialog: installDialog } = useInstallAction();
-  // Kurzanleitung wie in v1 automatisch beim ersten Start öffnen
+// Kurzanleitung wie in v1 automatisch beim ersten Start öffnen
   const [guideOpen, setGuideOpen] = useState(Boolean(currentUser && (!currentUser.onboardingState || currentUser.onboardingState === 'not_started')));
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null);
@@ -173,13 +171,7 @@ const V2ShellInner: React.FC = () => {
           <Typography variant="h6" component="div" noWrap sx={{ flexGrow: 1, color: 'inherit', fontWeight: 500 }}>
             {title}
           </Typography>
-          {installable && (
-            <Tooltip title="App installieren">
-              <IconButton color="inherit" onClick={install} aria-label="App installieren">
-                <InstallIcon />
-              </IconButton>
-            </Tooltip>
-          )}
+          <InstallAppIconButton />
           <Tooltip title="Konto">
             <IconButton onClick={(e) => setAccountAnchor(e.currentTarget)} aria-label="Konto und Einstellungen" sx={{ p: 0.5 }}>
               <Avatar sx={{ width: 34, height: 34, bgcolor: 'secondary.main', fontSize: 14 }}>{initials(currentUser?.displayName)}</Avatar>
@@ -236,9 +228,11 @@ const V2ShellInner: React.FC = () => {
         sx={{
           flexGrow: 1,
           minWidth: 0,
+          // Schutz gegen seitliches Überlaufen: sonst verschiebt der Mobilbrowser die fest verankerten Leisten
+          overflowX: 'clip',
           px: { xs: 2, sm: 3 },
           pt: { xs: 'calc(72px + env(safe-area-inset-top))', sm: 'calc(88px + env(safe-area-inset-top))' },
-          pb: { xs: 'calc(96px + env(safe-area-inset-bottom))', md: 6 },
+          pb: { xs: 'calc(64px + 16px + env(safe-area-inset-bottom))', md: 6 },
         }}
       >
         <Routes>
@@ -274,7 +268,11 @@ const V2ShellInner: React.FC = () => {
               const target = destinations.find((destination) => destination.key === key);
               if (target) navigate(target.path);
             }}
-            sx={{ height: 64 }}
+            sx={{
+              height: 64,
+              // gleiche Schriftgröße für aktiv/inaktiv, sonst verschieben sich die Symbole beim Wechsel
+              '& .MuiBottomNavigationAction-label, & .MuiBottomNavigationAction-label.Mui-selected': { fontSize: '0.75rem', transition: 'none' },
+            }}
           >
             {destinations.map((destination) => (
               <BottomNavigationAction
@@ -295,7 +293,6 @@ const V2ShellInner: React.FC = () => {
 
       <UserGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
       <UserPreferencesDialog open={prefsOpen} onClose={() => setPrefsOpen(false)} />
-      {installDialog}
-    </Box>
+</Box>
   );
 };

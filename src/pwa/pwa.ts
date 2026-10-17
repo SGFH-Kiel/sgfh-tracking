@@ -12,9 +12,11 @@ interface PwaState {
   installPrompt: BeforeInstallPromptEvent | null;
   installed: boolean;
   waitingWorker: ServiceWorker | null;
+  /** Service Worker erfolgreich registriert und aktiv – Voraussetzung für das Anbieten der Installation. */
+  serviceWorkerReady: boolean;
 }
 
-let state: PwaState = { installPrompt: null, installed: false, waitingWorker: null };
+let state: PwaState = { installPrompt: null, installed: false, waitingWorker: null, serviceWorkerReady: false };
 const listeners = new Set<() => void>();
 
 function setState(patch: Partial<PwaState>) {
@@ -89,6 +91,7 @@ export function registerServiceWorker(): void {
         if (registration.waiting && navigator.serviceWorker.controller) {
           setState({ waitingWorker: registration.waiting });
         }
+        navigator.serviceWorker.ready.then(() => setState({ serviceWorkerReady: true }));
         registration.addEventListener('updatefound', () => trackWaiting(registration.installing));
         // Regelmäßig nach Updates sehen (z. B. wenn die installierte App lange offen bleibt).
         window.setInterval(() => registration.update().catch(() => undefined), 60 * 60 * 1000);

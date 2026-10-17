@@ -10,7 +10,7 @@ import { AppointmentDialog } from './AppointmentDialog';
 import { useConfirm } from '../common/ConfirmProvider';
 import { AppointmentDetailsDialog } from './AppointmentDetailsDialog';
 import { getDefaultNewSlot, useIsMobile } from '../../hooks/useIsMobile';
-import { CALENDAR_MESSAGES, CalendarViewOption } from '../Calendar/calendarMessages';
+import { CALENDAR_MESSAGES, CalendarViewOption, getCalendarStyle } from '../Calendar/calendarMessages';
 import { Calendar, dayjsLocalizer } from 'react-big-calendar';
 
 const localizer = dayjsLocalizer(dayjs);
@@ -35,6 +35,7 @@ export const WorkCalendar: React.FC<{ listView?: boolean }> = ({ listView = fals
     systemConfig.calendarDefaults?.arbeitskalender ??
     'week';
   const [selectedView, setSelectedView] = useState<CalendarViewOption>(defaultView);
+  const calendarStyle = getCalendarStyle(listView, isMobile, selectedView);
 
   useEffect(() => {
     setSelectedView(preferList ? 'agenda' :
@@ -99,7 +100,7 @@ export const WorkCalendar: React.FC<{ listView?: boolean }> = ({ listView = fals
           events={appointments}
           startAccessor="startTime"
           endAccessor="endTime"
-          style={{ height: 'calc(100vh - 250px)', minHeight: 400 }}
+          style={calendarStyle}
           longPressThreshold={100}
           scrollToTime={new Date(1970, 0, 1, 7, 0, 0)}
           selectable={isAdmin || isAnyBootswart}

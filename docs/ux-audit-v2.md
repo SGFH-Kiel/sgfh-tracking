@@ -35,9 +35,10 @@ Stand: 17.10.2026. Grundlage: alle Ansichten und Abläufe der App auf Smartphone
 3. **Ein Eingang für Prüfende.** „Zu prüfen“ bündelt offene Arbeitsstunden und Reservierungen mit direkten Aktionen.
 4. **Sichere Aktionen.** Löschen immer mit Rückfrage, und jede Aktion meldet Erfolg oder Fehler sichtbar.
 5. **Einheitliche Sprache.** Anrede „Sie“. Status: *Offen* (wartet auf Prüfung), *Bestätigt*, *Abgelehnt*, *Geplant* (bestätigt, liegt in der Zukunft).
-6. **Live-Daten aus einer Quelle.** Eine gemeinsame Datenschicht mit Firestore-Listenern für Arbeitstermine und Reservierungen. Alle v2-Ansichten lesen daraus und sehen Änderungen sofort.
-7. **Keine zweite Fachlogik.** v2 nutzt dieselben Domänenfunktionen (`src/domain/*`) und dieselben Dialoge wie v1. Statusänderungen laufen über gemeinsame Aktionen (`src/domain/workHourActions.ts`, `src/domain/reservationActions.ts`). Am Datenmodell ändert sich nichts.
-8. **Barrierearm.** Beschriftete Icon-Buttons, Status nie allein über Farbe, sinnvolle Überschriftenstruktur.
+6. **Mobile Layout ohne Überbreite.** Die Navigationsleiste unten ist immer sichtbar (bis zu fünf Ziele, Material 3). Seitlicher Überlauf wird verhindert, sonst verschiebt der Mobilbrowser fest verankerte Leisten. Pro Ansicht gibt es nur einen Scrollbereich: Die Kalender-Listenansicht wächst mit dem Inhalt, Wochen- und Tagesansicht füllen den sichtbaren Bereich (`dvh`).
+7. **Live-Daten aus einer Quelle.**Eine gemeinsame Datenschicht mit Firestore-Listenern für Arbeitstermine und Reservierungen. Alle v2-Ansichten lesen daraus und sehen Änderungen sofort.
+8. **Keine zweite Fachlogik.**v2 nutzt dieselben Domänenfunktionen (`src/domain/*`) und dieselben Dialoge wie v1. Statusänderungen laufen über gemeinsame Aktionen (`src/domain/workHourActions.ts`, `src/domain/reservationActions.ts`). Am Datenmodell ändert sich nichts.
+9. **Barrierearm.**Beschriftete Icon-Buttons, Status nie allein über Farbe, sinnvolle Überschriftenstruktur.
 
 ## 3. Umfang von v2 (erste Ausbaustufe)
 

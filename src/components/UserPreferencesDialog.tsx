@@ -91,7 +91,7 @@ export const UserPreferencesDialog: React.FC<UserPreferencesDialogProps> = ({ op
                     onChange={(e) => setPrefs({ ...prefs, uiVersion: e.target.checked ? 'v2' : 'v1' })}
                   />
                 }
-                label={isAdmin && !systemConfig.featureFlags?.uiV2ForMembers ? 'Neue Oberfläche (Vorschau für Admins)' : 'Neue Oberfläche (Vorschau)'}
+                label={isAdmin && !systemConfig.featureFlags?.uiV2ForMembers ? 'Neue Oberfläche (Vorschau für Admins)' : 'Neue Oberfläche'}
               />
               <Divider />
             </>

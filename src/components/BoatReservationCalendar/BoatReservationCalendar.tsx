@@ -21,7 +21,7 @@ import { ReservationDetailsDialog } from './ReservationDetailsDialog';
 import BlockIcon from '@mui/icons-material/Block';
 import AddIcon from '@mui/icons-material/Add';
 import { getDefaultNewSlot, useIsMobile } from '../../hooks/useIsMobile';
-import { CALENDAR_MESSAGES, CalendarViewOption } from '../Calendar/calendarMessages';
+import { CALENDAR_MESSAGES, CalendarViewOption, getCalendarStyle } from '../Calendar/calendarMessages';
 
 const localizer = dayjsLocalizer(dayjs);
 
@@ -51,6 +51,7 @@ export const BoatReservationCalendar: React.FC<{ listView?: boolean }> = ({ list
     systemConfig.calendarDefaults?.vormerkbuch ??
     'week';
   const [selectedView, setSelectedView] = useState<CalendarViewOption>(defaultView);
+  const calendarStyle = getCalendarStyle(listView, isMobile, selectedView);
 
   useEffect(() => {
     setSelectedView(preferList ? 'agenda' :
@@ -242,7 +243,7 @@ export const BoatReservationCalendar: React.FC<{ listView?: boolean }> = ({ list
           }}
           startAccessor="startTime"
           endAccessor="endTime"
-          style={{ height: 'calc(100vh - 250px)', minHeight: 400 }}
+          style={calendarStyle}
           selectable={Boolean(currentUser)}
           onSelectSlot={handleSelectSlot}
           onSelectEvent={handleSelectEvent}

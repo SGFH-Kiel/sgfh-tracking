@@ -12,13 +12,33 @@ code {
     monospace;
 }
 
-/* Kalender-Listenansicht (v2): lange Titel umbrechen statt abschneiden */
+/* Kalender-Listenansicht (v2): lange Titel umbrechen statt die Tabelle zu verbreitern */
+.rbc-agenda-view table.rbc-agenda-table {
+  table-layout: fixed;
+}
 .rbc-agenda-view table.rbc-agenda-table td.rbc-agenda-event-cell {
   white-space: normal;
   word-break: break-word;
+}
+.rbc-agenda-view table.rbc-agenda-table td.rbc-agenda-event-cell * {
+  white-space: normal !important;
+  flex-wrap: wrap;
 }
 .rbc-agenda-view table.rbc-agenda-table td.rbc-agenda-date-cell,
 .rbc-agenda-view table.rbc-agenda-table td.rbc-agenda-time-cell {
   white-space: nowrap;
   font-size: 0.875rem;
+}
+@media (max-width: 599.95px) {
+  /* schmale Datums-/Zeitspalten, die bei Bedarf umbrechen */
+  .rbc-agenda-view table.rbc-agenda-table th:nth-child(1),
+  .rbc-agenda-view table.rbc-agenda-table td.rbc-agenda-date-cell { width: 26%; }
+  .rbc-agenda-view table.rbc-agenda-table th:nth-child(2),
+  .rbc-agenda-view table.rbc-agenda-table td.rbc-agenda-time-cell { width: 24%; }
+  .rbc-agenda-view table.rbc-agenda-table td.rbc-agenda-date-cell,
+  .rbc-agenda-view table.rbc-agenda-table td.rbc-agenda-time-cell {
+    white-space: normal;
+    font-size: 0.8125rem;
+    padding: 6px 4px;
+  }
 }

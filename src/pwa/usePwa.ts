@@ -18,8 +18,10 @@ export interface PwaInfo {
 export const usePwa = (): PwaInfo => {
   const state = useSyncExternalStore(subscribePwa, getPwaState, getPwaState);
   const standalone = isStandalone() || state.installed;
-  const canPromptInstall = !standalone && !!state.installPrompt;
-  const needsIosInstructions = !standalone && isIos();
+  // Installation nur anbieten, wenn der Service Worker läuft (Offline-Start, Updates) – sonst wäre die App nur ein Lesezeichen.
+  const supported = state.serviceWorkerReady;
+  const canPromptInstall = supported && !standalone && !!state.installPrompt;
+  const needsIosInstructions = supported && !standalone && isIos();
   return {
     standalone,
     canPromptInstall,

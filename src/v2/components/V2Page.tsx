@@ -2,11 +2,14 @@ import React, { useEffect } from 'react';
 import { Box, Chip, Fab, Paper, Skeleton, Stack, SxProps, Theme, Typography } from '@mui/material';
 import { usePageTitle } from '../../contexts/PageTitleContext';
 
+// Achtung: In MUI-sx bedeutet `width: 1` 100 % – für „nur für Screenreader“ daher explizit '1px'.
 const visuallyHiddenOnMobile = {
   position: { xs: 'absolute', sm: 'static' },
-  width: { xs: 1, sm: 'auto' },
-  height: { xs: 1, sm: 'auto' },
+  width: { xs: '1px', sm: 'auto' },
+  height: { xs: '1px', sm: 'auto' },
+  m: { xs: '-1px', sm: 0 },
   overflow: { xs: 'hidden', sm: 'visible' },
+  whiteSpace: { xs: 'nowrap', sm: 'normal' },
   clip: { xs: 'rect(0 0 0 0)', sm: 'auto' },
 } as const;
 
@@ -91,6 +94,9 @@ export const workStatusOf = (participantStatus: 'pending' | 'confirmed' | 'decli
 
 /** Schwebender Hauptaktions-Button, auf Smartphones oberhalb der Navigationsleiste. */
 export const V2Fab: React.FC<{ label: string; icon: React.ReactNode; onClick: () => void }> = ({ label, icon, onClick }) => (
+  <>
+  {/* Platzhalter, damit der letzte Eintrag nicht unter dem Button verschwindet */}
+  <Box aria-hidden sx={{ height: { xs: 64, md: 72 }, flexShrink: 0 }} />
   <Fab
     variant="extended"
     color="primary"
@@ -108,4 +114,5 @@ export const V2Fab: React.FC<{ label: string; icon: React.ReactNode; onClick: ()
     <Box sx={{ display: 'flex', mr: 1 }}>{icon}</Box>
     {label}
   </Fab>
+  </>
 );
