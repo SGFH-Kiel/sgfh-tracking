@@ -43,9 +43,10 @@
   - die Projektion muss exakt zur Reservierung passen (inkl. Bootsname, Status und Freitext)
 - `workAppointments`
   - Strukturvalidierung für neue Termine
-  - öffentliche Termine ohne `boatId` bleiben Admins vorbehalten; Bootswarte dürfen Termine nur ihren eigenen Booten zuordnen
+  - öffentliche Termine ohne `boatId` bleiben Admins vorbehalten; Bootswarte dürfen Termine für jedes Boot anlegen (für fremde Boote nur ohne Teilnehmer und mit Nachweis über das eigene Boot in `createdAsBootswartOfBoatId`) und Termine ihres Boots einem anderen Boot zuordnen
   - private Selbsteinträge von Mitgliedern werden als `pending` ohne Bestätigungsfelder angelegt; Admins (immer) und Bootswarte (nur mit eigenem Boot) dürfen eigene private Einträge direkt bestätigt anlegen, weil sie sonst niemand prüft
   - Ersteller eines privaten Einzeleintrags darf diesen bearbeiten und löschen, solange der Teilnehmerstatus nicht `confirmed` ist; Status, Ersteller und `private` bleiben unverändert
+  - bestätigte private Einträge dürfen nur Admins löschen (auch nicht der Bootswart des Boots)
   - Mitglieder ändern in öffentlichen Terminen nur den eigenen Eintrag (eintragen als `pending`, austragen solange unbestätigt, Zeit/Saison anpassen). Die Prüfung erfolgt über Listendifferenzen (`removeAll`), unabhängig von der Position in der Liste.
   - Saisonfelder (`season`, `seasonManual`): vor Aktivierung des Saisonmodells dürfen Mitglieder sie nicht setzen oder ändern; danach nur auf die aktuelle bzw. – in der Überlappung – die nächste Saison
 - `systemConfig/default`

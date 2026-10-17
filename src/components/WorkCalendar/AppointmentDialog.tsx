@@ -57,9 +57,13 @@ export const AppointmentDialog: React.FC<AppointmentDialogProps> = ({
   });
   const [newSupply, setNewSupply] = useState('');
   const { currentUser, boats, isAdmin } = useApp();
-  const availableBoats = boats.filter(
-    (boat) => isAdmin || boat.bootswart === currentUser?.id || boat.bootswart2 === currentUser?.id
-  );
+  const ownBoats = boats.filter((boat) => boat.bootswart === currentUser?.id || boat.bootswart2 === currentUser?.id);
+  // Bootswarte dürfen Termine für alle Boote anlegen; eigene Boote stehen oben.
+  const availableBoats = isAdmin
+    ? boats
+    : ownBoats.length > 0
+      ? [...ownBoats, ...boats.filter((boat) => !ownBoats.some((own) => own.id === boat.id))]
+      : [];
   const requiresBoatSelection = !isAdmin;
   const cannotSubmitWithoutBoat = requiresBoatSelection && !formData.boatId;
 
@@ -104,6 +108,9 @@ export const AppointmentDialog: React.FC<AppointmentDialogProps> = ({
     };
     if (formData.maxParticipants) {
       appointmentData.maxParticipants = formData.maxParticipants;
+    }
+    if (!isAdmin && formData.boatId && !ownBoats.some((boat) => boat.id === formData.boatId) && ownBoats[0]) {
+      appointmentData.createdAsBootswartOfBoatId = ownBoats[0].id;
     }
 
     await onSave(appointmentData);
@@ -196,7 +203,7 @@ export const AppointmentDialog: React.FC<AppointmentDialogProps> = ({
             )}
             {availableBoats.map((boat) => (
               <MenuItem key={boat.id} value={boat.id}>
-                {boat.name}
+                {boat.name}{!isAdmin && ownBoats.some((own) => own.id === boat.id) ? ' (eigenes Boot)' : ''}
                 </MenuItem>
             ))}
           </Select>

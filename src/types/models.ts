@@ -91,6 +91,8 @@ export interface WorkAppointment {
   private?: boolean;
   createdByUserId?: string;
   createdByUserName?: string;
+  // Gesetzt, wenn ein Bootswart einen Termin für ein fremdes Boot anlegt: eigenes Boot als Nachweis der Bootswart-Rolle (Firestore-Regeln)
+  createdAsBootswartOfBoatId?: string;
   createdAt: Date;
   updatedAt: Date;
 }

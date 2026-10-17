@@ -1160,12 +1160,33 @@ describe('firestore rules', () => {
       await assertSucceeds(updateDoc(doc(db, 'boats', 'boat-2'), { blocked: true, updatedAt: new Date() }));
     });
 
-    it('denies bootswarte from moving appointments to foreign boats or no boat', async () => {
+    it('lets bootswarte move their appointments to other boats but not to no boat', async () => {
       await seed('workAppointments', 'wa-b1', publicAppointment([], { boatId: 'boat-2' }));
       const db = testEnv.authenticatedContext('bootswart2-1').firestore();
-      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-b1'), { boatId: 'boat-1' }));
       await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-b1'), { boatId: '' }));
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-b1'), { boatId: 'boat-unknown' }));
       await assertSucceeds(updateDoc(doc(db, 'workAppointments', 'wa-b1'), { title: 'Neu', boatId: 'boat-2' }));
+      await assertSucceeds(updateDoc(doc(db, 'workAppointments', 'wa-b1'), { boatId: 'boat-1' }));
+    });
+
+    it('lets bootswarte create empty public appointments for other boats with proof of their own boat', async () => {
+      const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+      await assertSucceeds(setDoc(doc(db, 'workAppointments', 'wa-b2'), publicAppointment([], { boatId: 'boat-1', createdAsBootswartOfBoatId: 'boat-2' })));
+      await assertFails(setDoc(doc(db, 'workAppointments', 'wa-b3'), publicAppointment([], { boatId: 'boat-1' })));
+      await assertFails(setDoc(doc(db, 'workAppointments', 'wa-b4'), publicAppointment([participant({ userId: 'bootswart2-1', status: 'confirmed' })], { boatId: 'boat-1', createdAsBootswartOfBoatId: 'boat-2' })));
+      await assertFails(setDoc(doc(db, 'workAppointments', 'wa-b5'), publicAppointment([], { boatId: '', createdAsBootswartOfBoatId: 'boat-2' })));
+      const memberDb = testEnv.authenticatedContext('member-1').firestore();
+      await assertFails(setDoc(doc(memberDb, 'workAppointments', 'wa-b6'), publicAppointment([], { boatId: 'boat-1', createdAsBootswartOfBoatId: 'boat-2' })));
+    });
+
+    it('allows only admins to delete confirmed private entries', async () => {
+      await seed('workAppointments', 'wa-b7', privateAppointment({ status: 'confirmed' }, { boatId: 'boat-2' }));
+      await seed('workAppointments', 'wa-b8', privateAppointment({ status: 'pending' }, { boatId: 'boat-2' }));
+      const bwDb = testEnv.authenticatedContext('bootswart2-1').firestore();
+      await assertFails(deleteDoc(doc(bwDb, 'workAppointments', 'wa-b7')));
+      await assertSucceeds(deleteDoc(doc(bwDb, 'workAppointments', 'wa-b8')));
+      const adminDb = testEnv.authenticatedContext('admin-1').firestore();
+      await assertSucceeds(deleteDoc(doc(adminDb, 'workAppointments', 'wa-b7')));
     });
   });
 

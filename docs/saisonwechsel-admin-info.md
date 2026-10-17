@@ -35,7 +35,8 @@ Bis zur Aktivierung bleibt alles wie bisher.
 
 - **Strengere Rechteprüfung auf dem Server**:
   - Mitglieder können in öffentlichen Terminen nur noch den eigenen Eintrag ändern.
-  - Private Einträge lassen sich nicht selbst bestätigen und nach der Bestätigung nicht mehr löschen.
+  - Private Einträge lassen sich nicht selbst bestätigen. Bestätigte private Einträge können nur noch Admins löschen.
+  - Bootswarte können Arbeitstermine auch für andere Boote anlegen.
   - Bootswarte können nur noch den Status von Reservierungen ihres Boots ändern.
 - **Finale Reservierungen**: nur mit bezahltem Beitrag, und auf gesperrten Booten nur noch als Vormerkung.
 - **Admins**: können bei Mitgliedern nur Beitrag und Befreiung ändern. Die übrige Mitgliederverwaltung bleibt beim Superadmin.

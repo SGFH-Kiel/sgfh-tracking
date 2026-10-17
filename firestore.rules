@@ -257,10 +257,28 @@ service cloud.firestore {
         memberChangedSeasonFieldsValid(request.resource.data.participants[0], resource.data.participants[0]);
     }
 
-    // Bootswarte dürfen Termine nur innerhalb ihrer eigenen Boote verschieben.
-    function bootswartKeepsOwnBoat() {
+    // Bootswarte dürfen Termine ihres Boots einem anderen Boot zuordnen, aber nicht „kein Boot“ (Admin-Vorbehalt).
+    function bootswartKeepsABoat() {
       return request.resource.data.get('boatId', '') == resource.data.get('boatId', '') ||
-        isBootswart(request.resource.data.get('boatId', ''));
+        exists(/databases/$(database)/documents/boats/$(request.resource.data.get('boatId', '')));
+    }
+
+    // Bootswarte dürfen öffentliche Termine auch für fremde Boote anlegen. Da Regeln keine Abfragen erlauben,
+    // weist der Client die Bootswart-Rolle über das eigene Boot nach (`createdAsBootswartOfBoatId`).
+    // Solche Termine starten ohne Teilnehmer, damit keine Stunden für fremde Boote bestätigt werden.
+    function isBootswartCreatingForOtherBoat() {
+      return request.resource.data.get('private', false) != true &&
+        request.resource.data.get('boatId', '') != '' &&
+        exists(/databases/$(database)/documents/boats/$(request.resource.data.boatId)) &&
+        isBootswart(request.resource.data.get('createdAsBootswartOfBoatId', '')) &&
+        request.resource.data.participants.size() == 0;
+    }
+
+    // Bestätigte private Einträge sind nur für Admins löschbar.
+    function isConfirmedPrivateEntry() {
+      return resource.data.get('private', false) == true &&
+        resource.data.participants.size() > 0 &&
+        resource.data.participants[0].status == 'confirmed';
     }
 
     // ---------------------------------------------------------------------------
@@ -363,11 +381,11 @@ service cloud.firestore {
     match /workAppointments/{appointmentId} {
       allow read: if isMember();
 
-      allow create: if (isAdmin() || isBootswart(request.resource.data.get('boatId', '')) || isOwnPrivateCreate()) &&
+      allow create: if (isAdmin() || isBootswart(request.resource.data.get('boatId', '')) || isBootswartCreatingForOtherBoat() || isOwnPrivateCreate()) &&
         validWorkAppointment(request.resource.data);
 
       allow update: if isAdmin() ||
-        ('boatId' in resource.data && isBootswart(resource.data.boatId) && bootswartKeepsOwnBoat()) ||
+        ('boatId' in resource.data && isBootswart(resource.data.boatId) && bootswartKeepsABoat()) ||
         // Mitglieder: nur der eigene Eintrag in öffentlichen Terminen (eintragen, austragen, Zeit/Saison anpassen)
         (isMember() &&
           resource.data.get('private', false) != true &&
@@ -375,7 +393,7 @@ service cloud.firestore {
         isOwnPrivateEdit();
 
       allow delete: if isAdmin() ||
-        ('boatId' in resource.data && isBootswart(resource.data.boatId)) ||
+        ('boatId' in resource.data && isBootswart(resource.data.boatId) && !isConfirmedPrivateEntry()) ||
         (isMember() &&
           resource.data.get('private', false) == true &&
           resource.data.participants.size() == 1 &&

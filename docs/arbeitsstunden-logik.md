@@ -73,7 +73,7 @@ Bearbeiten und Löschen von Arbeitsterminen (`workAppointments`) ist rollenabhä
 ## Anlegen von Arbeitsterminen
 
 - **Öffentliche Termine ohne Bootzuordnung** können nur von **Admins / Superadmins** angelegt werden.
-- **Bootswarte** können weiterhin öffentliche Termine für ihre zugewiesenen Boote anlegen.
+- **Bootswarte** können öffentliche Termine für **alle Boote** anlegen (nicht ohne Boot). Bei fremden Booten startet der Termin ohne Teilnehmer und wird danach vom Bootswart des betreffenden Boots bzw. von Admins verwaltet. Technisch wird dabei das eigene Boot als Nachweis gespeichert (`createdAsBootswartOfBoatId`), weil Firestore-Regeln nicht abfragen können, ob jemand Bootswart irgendeines Boots ist.
 - **Private Arbeitsstunden** bleiben unverändert und werden weiterhin separat als private Eigeneinträge erfasst.
 
 ### Termin-Metadaten
@@ -111,7 +111,7 @@ Die Sperren für Admins (vergangene, bestätigte öffentliche Termine) und der A
 
 ### Sperrbedingung (private Termine)
 
-Ein privater Termin ist für den Ersteller gesperrt, sobald mindestens ein Teilnehmer `status === 'confirmed'` hat (unabhängig davon, ob der Termin in der Vergangenheit liegt). Die Sperre gilt auch für das Löschen und wird zusätzlich in den Firestore-Regeln durchgesetzt. Serienkopien werden für private Einträge nicht angeboten.
+Ein privater Termin ist für den Ersteller gesperrt, sobald mindestens ein Teilnehmer `status === 'confirmed'` hat (unabhängig davon, ob der Termin in der Vergangenheit liegt). Bestätigte private Einträge können nur Admins löschen, weder der Ersteller noch der Bootswart des Boots. Das wird zusätzlich in den Firestore-Regeln durchgesetzt.Serienkopien werden für private Einträge nicht angeboten.
 
 ### Mitglieder in öffentlichen Terminen
 
@@ -121,7 +121,7 @@ Mitglieder dürfen ausschließlich ihren **eigenen** Teilnehmereintrag ändern (
 - **Austragen**: nur, solange der eigene Eintrag nicht bestätigt ist
 - **Bearbeiten**: Zeiten und Saison des eigenen, nicht bestätigten Eintrags
 
-Bootswarte dürfen Termine nur ihren eigenen Booten zuordnen. Beim Speichern von Termin-Metadaten wird die Teilnehmerliste nicht mitgeschrieben, damit gleichzeitige Bestätigungen nicht überschrieben werden.
+Bootswarte dürfen Termine ihres Boots jedem anderen Boot zuordnen, aber nicht „Kein Boot“. Beim Speichernvon Termin-Metadaten wird die Teilnehmerliste nicht mitgeschrieben, damit gleichzeitige Bestätigungen nicht überschrieben werden.
 
 Die private Sperre schützt bereits angerechnete Arbeitsstunden vor nachträglicher Manipulation. Superadmins sind davon ausgenommen und können jederzeit korrigieren.
 

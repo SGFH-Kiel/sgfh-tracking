@@ -33,11 +33,11 @@
   - Arbeitstermine: Admin kann erstellen, Mitglied ohne Bootswart-Rolle wird verweigert
   - Saisonmodell: Saisonfelder vor Aktivierung gesperrt, buchbare Saisons, Überlappung, Admin-Saisonwechsel, Backfill/Aktivierung nur Superadmin
   - Teilnehmerlisten: nur eigener Eintrag (eintragen, austragen, ändern), keine Selbstbestätigung, `maxParticipants`
-  - Private Einträge: keine Selbstbestätigung beim Anlegen (außer Admin bzw. Bootswart des eigenen Boots), `private`/Status unveränderlich, Löschen nur unbestätigt
+  - Private Einträge: keine Selbstbestätigung beim Anlegen (außer Admin bzw. Bootswart des eigenen Boots), `private`/Status unveränderlich, Löschen durch Ersteller/Bootswart nur unbestätigt, bestätigte nur durch Admins
   - Benutzer: Selbstregistrierung nur mit Basisfeldern, Admin-Rechte auf `feesPaid`/`skipHours` begrenzt
   - Reservierungen: `approved` nur ohne Genehmigungspflicht, gesperrte Boote, `feesPaid` Pflicht, Bootswart nur Status
   - Öffentlicher Feed: passende Projektion erlaubt, manipulierte verweigert
-  - Bootswarte: keine Änderung der Bootswart-Zuordnung, keine Termine auf fremde Boote
+  - Bootswarte: keine Änderung der Bootswart-Zuordnung, Termine für fremde Boote nur leer und mit Nachweis, Verschieben auf andere Boote (nicht „kein Boot“)
   - Audit-Log: eigene `actorId`, keine Rückdatierung, nur Admins lesen
 
 ## Tests ausführen
@@ -54,7 +54,7 @@ npm test -- --watchAll=false --testPathPattern=domain
 npm run test:rules
 ```
 
-Der Befehl startet den Firestore-Emulator automatisch auf Port 9099, führt alle Regeltests aus (aktuell 67) und beendet den Emulator danach.
+Der Befehl startet den Firestore-Emulator automatisch auf Port 9099, führt alle Regeltests aus (aktuell 69)und beendet den Emulator danach.
 
 **Voraussetzung:** Firebase CLI muss installiert sein (`npm install -g firebase-tools`), außerdem Java 11+ für den Emulator.
 

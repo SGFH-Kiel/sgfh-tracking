@@ -138,10 +138,11 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   const isMyPrivateAppointment = appointment.private && appointment.participants.some(p => p.userId === currentUser?.id);
   // Eigene private Einträge sind nach der Bestätigung gesperrt (auch für das Löschen).
   const canDeleteOwnPrivate = !!isMyPrivateAppointment && !hasConfirmedParticipants;
-  // Bootswarte dürfen Termine nur ihren eigenen Booten zuordnen.
-  const editableBoats = (isAdmin || isSuperAdmin)
-    ? boats
-    : boats.filter((boat) => boat.bootswart === currentUser?.id || boat.bootswart2 === currentUser?.id);
+  // Bestätigte private Einträge dürfen nur Admins löschen (auch nicht der Bootswart des Boots).
+  const isConfirmedPrivate = !!appointment.private && hasConfirmedParticipants;
+  const canDelete = isConfirmedPrivate ? (isAdmin || isSuperAdmin) : (canEdit || canDeleteOwnPrivate);
+  // Bootswarte dürfen Termine jedem Boot zuordnen, aber nicht „Kein Boot“ (das bleibt Admins vorbehalten).
+  const editableBoats = boats;
   const isParticipantLimitReached = Boolean(appointment.maxParticipants && appointment.participants.length >= appointment.maxParticipants);
   const appointmentScopeLabel = appointment.private
     ? 'Privater Termin'
@@ -935,7 +936,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
         )}
         <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, width: '100%', justifyContent: 'space-between', flexWrap: 'wrap', ml: '0 !important' }}>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            {(canEdit || canDeleteOwnPrivate) && onDelete && !isEditing && (
+            {canDelete && onDelete && !isEditing && (
               <Button
                 color="error"
                 variant="outlined"
