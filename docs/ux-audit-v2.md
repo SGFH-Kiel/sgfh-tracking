@@ -49,7 +49,8 @@ Stand: 17.10.2026. Grundlage: alle Ansichten und Abläufe der App auf Smartphone
 | Stunden | Kartenliste statt Tabelle, Saisonwahl, Fortschritt, FAB „Stunden eintragen“ |
 | Zu prüfen | offene Arbeitsstunden (Admins: alle, Bootswarte: eigene Boote) und offene Reservierungen der eigenen Boote, mit Bestätigen/Ablehnen direkt in der Liste |
 | Kalender | bestehende Kalender, zusätzlich Listenansicht, auf dem Smartphone standardmäßig |
-| Mehr | Neuigkeiten, Verwaltung (Boote, Mitglieder, Aktivitäten, Systemeinstellungen) mit den bestehenden Seiten, Einstellungen, Hilfe, App installieren, zurück zur klassischen Ansicht, Abmelden |
+| Mehr | Neuigkeiten, Verwaltung (Mitgliederstunden für Admins und Bootswarte, Boote, Mitglieder, Aktivitäten, Systemeinstellungen) mit den bestehenden Seiten, Einstellungen, Hilfe, App installieren, zurück zur klassischen Ansicht, Abmelden |
+| Kurzanleitung | an die Oberfläche angepasst, in v2 mit Schritt „Neu hier“, der sich beim ersten Wechsel einmalig öffnet |
 
 Verwaltungsseiten und Dialoge stammen in dieser Stufe weiterhin aus v1, wurden aber für Smartphones bereits angepasst. Sie können in späteren Stufen einzeln überarbeitet werden.
 

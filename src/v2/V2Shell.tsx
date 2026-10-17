@@ -28,7 +28,8 @@ import {
   CalendarMonth as CalendarIcon,
   DirectionsBoat as BoatIcon,
   FactCheck as ReviewIcon,
-Group as MembersIcon,
+  Group as MembersIcon,
+  Groups as MemberHoursIcon,
   Handyman as HoursIcon,
   HelpOutline as HelpIcon,
   Home as HomeIcon,
@@ -46,12 +47,13 @@ import { useChangelog } from '../hooks/useChangelog';
 import { useUiVersion } from '../hooks/useUiVersion';
 import { isSeasonModelActive } from '../domain/seasons';
 import { InstallAppIconButton } from '../pwa/PwaComponents';
-import { UserGuide } from '../components/Onboarding/UserGuide';
+import { UserGuide, V2_INTRO_STEP_INDEX } from '../components/Onboarding/UserGuide';
 import { UserPreferencesDialog } from '../components/UserPreferencesDialog';
 import { CalendarTabs } from '../components/Calendar/CalendarTabs';
 import { ChangelogView } from '../components/Changelog/ChangelogView';
 import { BoatList } from '../components/Boats/BoatList';
 import { MemberList } from '../components/Members/MemberList';
+import { WorkHoursTracker } from '../components/Members/WorkHoursTracker';
 import { ActivityTrackingView } from '../components/Admin/ActivityTrackingView';
 import { SystemConfig } from '../components/Admin/SystemConfig';
 import { LiveDataProvider } from './data/LiveDataContext';
@@ -90,8 +92,15 @@ const V2ShellInner: React.FC = () => {
   const { unseen } = useChangelog();
   const { setVersion } = useUiVersion();
   const reviewCount = useReviewCounts().total;
-// Kurzanleitung wie in v1 automatisch beim ersten Start öffnen
-  const [guideOpen, setGuideOpen] = useState(Boolean(currentUser && (!currentUser.onboardingState || currentUser.onboardingState === 'not_started')));
+  // Kurzanleitung automatisch öffnen: beim allerersten Start komplett, beim ersten Wechsel auf v2 ab „Neu hier“
+  const knowsClassicTour = currentUser?.onboardingState === 'completed' || currentUser?.onboardingState === 'skipped';
+  const needsV2Intro = !!currentUser && !currentUser.preferences?.v2TourSeen;
+  const [guideOpen, setGuideOpen] = useState(needsV2Intro);
+  const [guideInitialStep, setGuideInitialStep] = useState(knowsClassicTour ? V2_INTRO_STEP_INDEX : 0);
+  const openGuide = () => {
+    setGuideInitialStep(0);
+    setGuideOpen(true);
+  };
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null);
 
@@ -107,6 +116,7 @@ const V2ShellInner: React.FC = () => {
   ], [isReviewer, reviewCount, unseen.length]);
 
   const adminLinks: Destination[] = [
+    ...(isReviewer ? [{ key: 'memberHours', label: 'Mitgliederstunden', path: '/member-hours', icon: <MemberHoursIcon /> }] : []),
     ...(isAdmin ? [
       { key: 'boats', label: 'Boote', path: '/boats', icon: <BoatIcon /> },
       { key: 'members', label: 'Mitglieder', path: '/members', icon: <MembersIcon /> },
@@ -122,7 +132,7 @@ const V2ShellInner: React.FC = () => {
       .find((destination) => destination.path !== '/' && path.startsWith(destination.path));
     if (!match) return 'home';
     // Unterseiten aus „Mehr“ markieren auf dem Smartphone den Reiter „Mehr“
-    return ['boats', 'members', 'tracking', 'settings', 'news'].includes(match.key) && !isDesktop ? 'more' : match.key;
+    return ['memberHours', 'boats', 'members', 'tracking', 'settings', 'news'].includes(match.key) && !isDesktop ? 'more' : match.key;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, destinations, isDesktop]);
 
@@ -189,7 +199,7 @@ const V2ShellInner: React.FC = () => {
         <MenuItem onClick={() => { setAccountAnchor(null); setPrefsOpen(true); }}>
           <ListItemIcon><PreferencesIcon fontSize="small" /></ListItemIcon>Meine Einstellungen
         </MenuItem>
-        <MenuItem onClick={() => { setAccountAnchor(null); setGuideOpen(true); }}>
+        <MenuItem onClick={() => { setAccountAnchor(null); openGuide(); }}>
           <ListItemIcon><HelpIcon fontSize="small" /></ListItemIcon>Hilfe
         </MenuItem>
         <MenuItem onClick={handleSwitchToClassic}>
@@ -240,7 +250,8 @@ const V2ShellInner: React.FC = () => {
           <Route path="/calendar" element={<CalendarTabs listView />} />
           <Route path="/hours" element={<V2Hours />} />
           {isReviewer && <Route path="/review" element={<V2Review />} />}
-          <Route path="/more" element={<V2More onOpenPreferences={() => setPrefsOpen(true)} onOpenGuide={() => setGuideOpen(true)} onSwitchToClassic={handleSwitchToClassic} />} />
+          {isReviewer && <Route path="/member-hours" element={<WorkHoursTracker view="members" />} />}
+          <Route path="/more" element={<V2More onOpenPreferences={() => setPrefsOpen(true)} onOpenGuide={openGuide}onSwitchToClassic={handleSwitchToClassic} />} />
           <Route path="/changelog" element={<ChangelogView />} />
           {isAdmin && (
             <>
@@ -291,7 +302,7 @@ const V2ShellInner: React.FC = () => {
         </Paper>
       )}
 
-      <UserGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
+      <UserGuide open={guideOpen} onClose={() => setGuideOpen(false)} initialStep={guideInitialStep} />
       <UserPreferencesDialog open={prefsOpen} onClose={() => setPrefsOpen(false)} />
 </Box>
   );

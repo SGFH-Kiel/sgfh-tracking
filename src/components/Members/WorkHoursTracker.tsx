@@ -126,7 +126,16 @@ const STATUS_RANK: Record<UserWorkHours['status'], number> = {
   paused: 4,
 };
 
-export const WorkHoursTracker: React.FC = () => {
+/**
+ * Arbeitsstunden-Übersicht. `view="members"` zeigt nur die Mitgliederstunden (für die Verwaltung in v2),
+ * die klassische Ansicht nutzt beide Bereiche.
+ */
+export const WorkHoursTracker: React.FC<{ view?: 'full' | 'members' }> = ({ view = 'full' }) => {
+  const showOwnHours = view !== 'members';
+  // Neben der v2-Seitenleiste ist weniger Platz: Detailspalten dort erst auf breiten Bildschirmen zeigen
+  const detailColumnSx = showOwnHours
+    ? { display: { xs: 'none', md: 'table-cell' } }
+    : { display: { xs: 'none', lg: 'table-cell' } };
   const { isAdmin, isAnyBootswart, currentUser, systemConfig, database, boats } = useApp();
   const { enqueueSnackbar } = useSnackbar();
   const confirm = useConfirm();
@@ -332,9 +341,9 @@ export const WorkHoursTracker: React.FC = () => {
 
   useEffect(() => {
     setBreadcrumbs([
-      { text: 'Arbeitsstunden' },
+      { text: showOwnHours ? 'Arbeitsstunden' : 'Mitgliederstunden' },
     ]);
-  }, [setBreadcrumbs]);
+  }, [setBreadcrumbs, showOwnHours]);
 
   const currentUserHours = useMemo(() => userWorkHours.find(({ user }) => user.id === currentUser?.id) || {
     user: currentUser!,
@@ -490,6 +499,7 @@ export const WorkHoursTracker: React.FC = () => {
           </Typography>
         </Paper>
       )}
+      {showOwnHours && (
       <Paper sx={{ p: { xs: 2, sm: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, mb: 2, flexWrap: 'wrap' }}>
           <Typography variant="h5" gutterBottom>
@@ -740,7 +750,8 @@ export const WorkHoursTracker: React.FC = () => {
         </TableContainer>
         </Box>
       </Paper>
-      
+      )}
+
       {(isAdmin || isAnyBootswart) && (
         <Paper sx={{ p: { xs: 2, sm: 3 } }}>
           {refreshing && (
@@ -867,8 +878,8 @@ export const WorkHoursTracker: React.FC = () => {
                     Fortschritt
                   </TableSortLabel>
                 </TableCell>
-                <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>Absolviert</TableCell>
-                <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>Geplant</TableCell>
+                <TableCell align="right" sx={detailColumnSx}>Absolviert</TableCell>
+                <TableCell align="right" sx={detailColumnSx}>Geplant</TableCell>
                 <TableCell align="right" sortDirection={sortKey === 'remaining' ? sortDir : false} sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                   <TableSortLabel
                     active={sortKey === 'remaining'}
@@ -932,10 +943,10 @@ export const WorkHoursTracker: React.FC = () => {
                           </Typography>
                         </Box>
                       </TableCell>
-                      <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                      <TableCell align="right" sx={detailColumnSx}>
                         {shortHumanizer(completedDuration)}
                       </TableCell>
-                      <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                      <TableCell align="right" sx={detailColumnSx}>
                         {shortHumanizer(upcomingDuration)}
                       </TableCell>
                       <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{shortHumanizer(remaining)}</TableCell>

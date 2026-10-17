@@ -12,7 +12,7 @@ Wichtige Felder:
 - `feesPaid`
 - `skipHours`
 - `onboardingState`
-- `preferences` (u. a. `calendarDefaults`, `showCancelledReservations`, `seenChangelogIds`, `uiVersion` = `v1` | `v2`)
+- `preferences` (u. a. `calendarDefaults`, `showCancelledReservations`, `seenChangelogIds`, `uiVersion` = `v1` | `v2`, `v2TourSeen`)
 
 ## `boats`
 

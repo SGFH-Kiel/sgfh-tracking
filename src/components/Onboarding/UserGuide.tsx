@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -20,14 +20,19 @@ import {
   DirectionsBoat as BoatIcon,
   CheckCircle as CheckCircleIcon,
   ArrowForward as ArrowForwardIcon,
+  AutoAwesome as NewIcon,
 } from '@mui/icons-material';
 import { useApp } from '../../contexts/AppContext';
 import { isSeasonModelActive } from '../../domain/seasons';
+import { useUiVersion } from '../../hooks/useUiVersion';
+import { UiVersion } from '../../domain/uiVersion';
 import { User } from '../../types/models';
 
 interface UserGuideProps {
   open: boolean;
   onClose: () => void;
+  /** Schritt, mit dem die Tour beim Öffnen beginnt (z. B. „Neu hier“ beim ersten Wechsel auf v2). */
+  initialStep?: number;
 }
 
 interface GuideStepDefinition {
@@ -53,7 +58,52 @@ const SectionTitle = ({ children }: { children: React.ReactNode }) => (
   </Typography>
 );
 
-const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean, seasonModelActive: boolean): GuideStepDefinition[] => [
+interface GuideContext {
+  isAdmin: boolean;
+  isAnyBootswart: boolean;
+  seasonModelActive: boolean;
+  ui: UiVersion;
+}
+
+/** Index des v2-Einführungsschritts („Neu hier“) – dort beginnt die Tour für Nutzer, die v1 schon kennen. */
+export const V2_INTRO_STEP_INDEX = 1;
+
+const v2IntroStep = ({ isAdmin, isAnyBootswart }: GuideContext): GuideStepDefinition => ({
+  title: 'Neu hier',
+  icon: <NewIcon sx={{ fontSize: 22 }} />,
+  content: (
+    <Box>
+      <Typography variant="body2" sx={{ mb: 2 }}>
+        Sie nutzen die <strong>neue Oberfläche</strong>. Das Wichtigste in Kürze:
+      </Typography>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+        {[
+          { icon: '🏠', label: 'Übersicht', desc: 'Darf ich final reservieren? Was fehlt mir? Was steht an? – alles auf einen Blick.' },
+          { icon: '🧭', label: 'Navigation', desc: 'Auf dem Smartphone unten, am Computer links: Übersicht, Kalender, Stunden' + (isAdmin || isAnyBootswart ? ', Prüfen' : '') + ' und Mehr.' },
+          ...(isAdmin || isAnyBootswart ? [{ icon: '✅', label: 'Prüfen', desc: 'Alle offenen Arbeitsstunden und Reservierungen Ihrer Zuständigkeit – bestätigen oder ablehnen mit einem Tipp, inklusive „Rückgängig“.' }] : []),
+          { icon: '📲', label: 'App installieren', desc: 'Über das Symbol oben rechts (wenn Ihr Gerät es unterstützt) – mit eigenem Symbol und ohne erneute Anmeldung.' },
+          { icon: '🔄', label: 'Zurück zur klassischen Ansicht', desc: 'Jederzeit über Ihr Profilsymbol oben rechts oder unter „Mehr“.' },
+        ].map(({ icon, label, desc }) => (
+          <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1, borderRadius: 1, bgcolor: 'grey.50' }}>
+            <Typography sx={{ fontSize: 18, lineHeight: 1 }}>{icon}</Typography>
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>{label}</Typography>
+              <Typography variant="caption" color="text.secondary">{desc}</Typography>
+            </Box>
+          </Box>
+        ))}
+      </Box>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+        Alle Änderungen an der App finden Sie unter „Neuigkeiten“.
+      </Typography>
+    </Box>
+  ),
+});
+
+const buildSteps = (context: GuideContext): GuideStepDefinition[] => {
+  const { isAdmin, isAnyBootswart, seasonModelActive, ui } = context;
+  const v2 = ui === 'v2';
+  const steps: GuideStepDefinition[] = [
   {
     title: 'Willkommen',
     icon: <span style={{ fontSize: 22 }}>👋</span>,
@@ -65,14 +115,20 @@ const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean, seasonModelActive
 
         <SectionTitle>Navigation</SectionTitle>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 2 }}>
-          {[
+          {(v2 ? [
+            { icon: '🏠', label: 'Übersicht', desc: 'Status, nächste Reservierungen und Arbeitstermine' },
+            { icon: '📅', label: 'Kalender', desc: 'Bootsreservierungen und Arbeitstermine' },
+            { icon: '🔧', label: 'Stunden', desc: 'Eigene Stunden einsehen und eintragen' },
+            ...(isAdmin || isAnyBootswart ? [{ icon: '✅', label: 'Prüfen', desc: 'Offene Arbeitsstunden und Reservierungen bearbeiten' }] : []),
+            { icon: '⋯', label: 'Mehr', desc: isAdmin || isAnyBootswart ? 'Neuigkeiten, Verwaltung (z. B. Mitgliederstunden), Einstellungen, Hilfe' : 'Neuigkeiten, Einstellungen, Hilfe' },
+          ] : [
             { icon: '📅', label: 'Kalender', desc: 'Bootsreservierungen und Arbeitstermine' },
             { icon: '🔧', label: 'Arbeitsstunden', desc: 'Eigene Stunden einsehen und eintragen' },
             ...(isAdmin ? [
               { icon: '⛵', label: 'Bootsverwaltung', desc: 'Boote anlegen und verwalten' },
               { icon: '👥', label: 'Mitgliederverwaltung', desc: 'Mitglieder und Rollen verwalten' },
             ] : []),
-          ].map(({ icon, label, desc }) => (
+          ]).map(({ icon, label, desc }) => (
             <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1, borderRadius: 1, bgcolor: 'grey.50' }}>
               <Typography sx={{ fontSize: 18, lineHeight: 1 }}>{icon}</Typography>
               <Box>
@@ -104,7 +160,7 @@ const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean, seasonModelActive
     content: (
       <Box>
         <Typography variant="body2" sx={{ mb: 2 }}>
-          Jedes Mitglied muss pro {seasonModelActive ? 'Saison' : 'Jahr'} eine Mindestanzahl an Arbeitsstunden leisten. Den aktuellen Stand sehen Sie unter <strong>Arbeitsstunden → Meine Stunden</strong>.
+          Jedes Mitglied muss pro {seasonModelActive ? 'Saison' : 'Jahr'} eine Mindestanzahl an Arbeitsstunden leisten. Den aktuellen Stand sehen Sie {v2 ? <>in der <strong>Übersicht</strong> und unter <strong>Stunden</strong></> : <>unter <strong>Arbeitsstunden → Meine Stunden</strong></>}.
         </Typography>
 
         {seasonModelActive && (
@@ -121,11 +177,15 @@ const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean, seasonModelActive
         <SectionTitle>Fortschrittsanzeige</SectionTitle>
         <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mb: 1.5 }}>
           <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-            {[
+            {(v2 ? [
+              { color: 'primary.main', label: 'Bestätigt (grün, wenn erfüllt)' },
+              { color: 'primary.light', label: 'Offen oder geplant' },
+              { color: 'grey.300', label: 'Fehlt noch' },
+            ] : [
               { color: 'success.main', label: 'Bestätigt' },
               { color: 'primary.main', label: 'Geplant' },
               { color: 'grey.300', label: 'Ausstehend' },
-            ].map(({ color, label }) => (
+            ]).map(({ color, label }) => (
               <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <Box sx={{ width: 12, height: 8, borderRadius: 1, bgcolor: color }} />
                 <Typography variant="caption">{label}</Typography>
@@ -136,7 +196,7 @@ const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean, seasonModelActive
 
         <SectionTitle>Statuswerte je Eintrag</SectionTitle>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1.5 }}>
-          <StatusBadge label="Unbestätigt" color="warning" />
+          <StatusBadge label={v2 ? 'Offen' : 'Unbestätigt'} color="warning" />
           <StatusBadge label="Geplant" color="info" />
           <StatusBadge label="Bestätigt" color="success" />
           <StatusBadge label="Abgelehnt" color="error" />
@@ -144,25 +204,29 @@ const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean, seasonModelActive
 
         <SectionTitle>Stunden eintragen</SectionTitle>
         <Typography variant="body2" sx={{ mb: 1.5 }}>
-          Über <strong>„Arbeitsstunde hinzufügen"</strong> können private Einträge manuell erfasst werden. Diese erscheinen zunächst als <em>Unbestätigt</em> und werden von einem Admin oder Bootswart geprüft.
+          Über <strong>{v2 ? '„Stunden eintragen“' : '„Arbeitsstunde hinzufügen“'}</strong> können private Einträge manuell erfasst werden. Diese erscheinen zunächst als <em>{v2 ? 'Offen' : 'Unbestätigt'}</em> und werden von einem Admin oder Bootswart geprüft.
         </Typography>
 
         <SectionTitle>Arbeitskalender</SectionTitle>
         <Typography variant="body2">
-          Im Tab <strong>Arbeitskalender</strong> sehen Sie geplante Arbeitstermine. Per Klick können Sie sich für einen Termin eintragen.
+          {v2
+            ? <>Unter <strong>Kalender → Arbeitskalender</strong> sehen Sie geplante Arbeitstermine (auf dem Smartphone als Liste). Termin antippen und „Teilnehmen“ wählen. Die nächsten Termine stehen auch in der Übersicht.</>
+            : <>Im Tab <strong>Arbeitskalender</strong> sehen Sie geplante Arbeitstermine. Per Klick können Sie sich für einen Termin eintragen.</>}
         </Typography>
 
         {isAdmin && (
           <Alert severity="info" sx={{ mt: 2, py: 0.5 }}>
             <Typography variant="caption">
-              Als Admin sehen Sie unter <strong>Mitgliederstunden</strong> den Stand aller Mitglieder und können Einträge bestätigen oder ablehnen.
+              {v2
+                ? <>Als Admin bestätigen oder lehnen Sie Einträge unter <strong>Prüfen</strong> ab. Den Stand aller Mitglieder (inkl. Import/Export) finden Sie unter <strong>Mehr → Mitgliederstunden</strong>.</>
+                : <>Als Admin sehen Sie unter <strong>Mitgliederstunden</strong> den Stand aller Mitglieder und können Einträge bestätigen oder ablehnen.</>}
             </Typography>
           </Alert>
         )}
         {!isAdmin && isAnyBootswart && (
           <Alert severity="info" sx={{ mt: 2, py: 0.5 }}>
             <Typography variant="caption">
-              Als Bootswart können Sie Stunden für Einsätze an Ihrem Boot bestätigen oder ablehnen.
+              Als Bootswart können Sie Stunden für Einsätze an Ihrem Boot bestätigen oder ablehnen{v2 ? <> – gesammelt unter <strong>Prüfen</strong></> : ''}.
             </Typography>
           </Alert>
         )}
@@ -175,7 +239,9 @@ const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean, seasonModelActive
     content: (
       <Box>
         <Typography variant="body2" sx={{ mb: 2 }}>
-          Bootsreservierungen verwalten Sie im Tab <strong>Vormerkbuch</strong>. Klicken Sie auf einen freien Zeitraum im Kalender, um eine neue Reservierung zu erstellen.
+          {v2
+            ? <>Bootsreservierungen verwalten Sie unter <strong>Kalender → Vormerkbuch</strong>. Mit <strong>„Reservieren“</strong> (bzw. „Vormerken“) legen Sie eine neue Reservierung an; Ihre nächsten Reservierungen sehen Sie auch in der Übersicht.</>
+            : <>Bootsreservierungen verwalten Sie im Tab <strong>Vormerkbuch</strong>. Klicken Sie auf einen freien Zeitraum im Kalender oder auf „Reservieren“, um eine neue Reservierung zu erstellen.</>}
         </Typography>
 
         <SectionTitle>Reservierungsstatus</SectionTitle>
@@ -267,18 +333,24 @@ const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean, seasonModelActive
     content: (
       <Box>
         <Typography variant="body2" sx={{ mb: 2 }}>
-          Den Gesamtstatus Ihrer Arbeitsstunden sehen Sie auf der Seite <strong>Arbeitsstunden</strong> neben der Überschrift.
+          {v2
+            ? <>Ob Sie final reservieren können und was noch fehlt, zeigt die <strong>Übersicht</strong> ganz oben. Details stehen unter <strong>Stunden</strong>.</>
+            : <>Den Gesamtstatus Ihrer Arbeitsstunden sehen Sie auf der Seite <strong>Arbeitsstunden</strong> neben der Überschrift.</>}
         </Typography>
 
-        <SectionTitle>Gesamtstatus Arbeitsstunden</SectionTitle>
+        <SectionTitle>{v2 ? 'Status in der Übersicht' : 'Gesamtstatus Arbeitsstunden'}</SectionTitle>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 2 }}>
-          {([
+          {((v2 ? [
+            { label: 'Sie können final reservieren', color: 'success', desc: 'Beitrag bezahlt und Stunden erfüllt (oder befreit)' },
+            { label: 'Noch nicht möglich', color: 'warning', desc: 'Die Übersicht nennt, was fehlt – z. B. noch offene Stunden' },
+            { label: 'Abgelehnt', color: 'error', desc: 'Ein Eintrag wurde abgelehnt – bitte mit Admin oder Bootswart klären' },
+          ] : [
             { label: 'Offen', color: 'warning', desc: 'Stunden fehlen noch, keine Planung vorhanden' },
             { label: 'Geplant', color: 'info', desc: 'Stunden eingeplant, aber noch nicht bestätigt' },
             { label: 'Erfüllt', color: 'success', desc: 'Alle Stunden bestätigt — Reservierungen möglich' },
             { label: 'Prüfen!', color: 'error', desc: 'Mindestens ein Eintrag wurde abgelehnt' },
             { label: 'Ausgesetzt', color: 'success', desc: 'Stundenpflicht für Sie deaktiviert' },
-          ] as const).map(({ label, color, desc }) => (
+          ]) as ReadonlyArray<{ label: string; color: 'success' | 'warning' | 'error' | 'info'; desc: string }>).map(({ label, color, desc }) => (
             <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <StatusBadge label={label} color={color} />
               <Typography variant="caption" color="text.secondary">{desc}</Typography>
@@ -290,37 +362,56 @@ const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean, seasonModelActive
 
         <SectionTitle>Hilfe jederzeit abrufen</SectionTitle>
         <Typography variant="body2">
-          Diese Anleitung ist über den <strong>„Hilfe"</strong>-Button oben rechts in der Menüleiste jederzeit wieder abrufbar.
+          {v2
+            ? <>Diese Anleitung erreichen Sie jederzeit über Ihr <strong>Profilsymbol</strong> oben rechts → „Hilfe“ oder unter <strong>Mehr → Hilfe</strong>.</>
+            : <>Diese Anleitung ist über den <strong>„Hilfe“</strong>-Button oben rechts in der Menüleiste jederzeit wieder abrufbar.</>}
         </Typography>
 
         {isAdmin && (
           <Alert severity="info" sx={{ mt: 2, py: 0.5 }}>
             <Typography variant="caption">
-              <strong>Admin:</strong> Reservierungen genehmigen Sie im Kalender per Klick auf den Eintrag. Arbeitsstunden verwalten Sie unter <strong>Mitgliederstunden</strong>.
+              {v2
+                ? <><strong>Admin:</strong> Offene Reservierungen und Arbeitsstunden bearbeiten Sie unter <strong>Prüfen</strong>, den Stand aller Mitglieder unter <strong>Mehr → Mitgliederstunden</strong>.</>
+                : <><strong>Admin:</strong> Reservierungen genehmigen Sie im Kalender per Klick auf den Eintrag. Arbeitsstunden verwalten Sie unter <strong>Mitgliederstunden</strong>.</>}
             </Typography>
           </Alert>
         )}
         {!isAdmin && isAnyBootswart && (
           <Alert severity="info" sx={{ mt: 2, py: 0.5 }}>
             <Typography variant="caption">
-              <strong>Bootswart:</strong> Ausstehende Reservierungen für Ihr Boot können Sie im Kalender direkt genehmigen oder ablehnen.
+              {v2
+                ? <><strong>Bootswart:</strong> Ausstehende Reservierungen und Arbeitsstunden für Ihr Boot finden Sie gesammelt unter <strong>Prüfen</strong>.</>
+                : <><strong>Bootswart:</strong> Ausstehende Reservierungen für Ihr Boot können Sie im Kalender direkt genehmigen oder ablehnen.</>}
             </Typography>
           </Alert>
         )}
       </Box>
     ),
   },
-];
+  ];
+  if (v2) {
+    steps.splice(V2_INTRO_STEP_INDEX, 0, v2IntroStep(context));
+  }
+  return steps;
+};
 
-export const UserGuide: React.FC<UserGuideProps> = ({ open, onClose }) => {
+export const UserGuide: React.FC<UserGuideProps> = ({ open, onClose, initialStep = 0 }) => {
   const { currentUser, database, reloadCurrentUser, isAdmin, isAnyBootswart, systemConfig } = useApp();
+  const { version: ui } = useUiVersion();
   const seasonModelActive = isSeasonModelActive(systemConfig);
   const [activeStep, setActiveStep] = useState(0);
 
   const GUIDE_STEPS = useMemo(
-    () => buildSteps(isAdmin, isAnyBootswart, seasonModelActive),
-    [isAdmin, isAnyBootswart, seasonModelActive],
+    () => buildSteps({ isAdmin, isAnyBootswart, seasonModelActive, ui }),
+    [isAdmin, isAnyBootswart, seasonModelActive, ui],
   );
+
+  useEffect(() => {
+    if (open) {
+      setActiveStep(Math.min(Math.max(0, initialStep), GUIDE_STEPS.length - 1));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   const currentStep = useMemo(() => GUIDE_STEPS[activeStep], [GUIDE_STEPS, activeStep]);
 
   const persistState = async (onboardingState: User['onboardingState']) => {
@@ -329,6 +420,8 @@ export const UserGuide: React.FC<UserGuideProps> = ({ open, onClose }) => {
     }
     await database.updateDocument<User>('users', currentUser.id, {
       onboardingState,
+      // In v2 merken, dass die Einführung der neuen Oberfläche gesehen wurde
+      ...(ui === 'v2' ? { preferences: { ...(currentUser.preferences ?? {}), v2TourSeen: true } } : {}),
       updatedAt: new Date(),
     });
     await reloadCurrentUser();

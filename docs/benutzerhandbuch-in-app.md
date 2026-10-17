@@ -7,7 +7,9 @@ Die geführte Kurzanleitung ist in `src/components/Onboarding/UserGuide.tsx` imp
 - wird automatisch geöffnet, wenn `users.onboardingState` nicht gesetzt oder `not_started` ist
 - kann übersprungen werden
 - kann abgeschlossen werden
-- kann jederzeit über den Button `Hilfe` in der Kopfzeile erneut geöffnet werden
+- kann jederzeit erneut geöffnet werden: in der klassischen Ansicht über `Hilfe` in der Kopfzeile, in der neuen Oberfläche über das Profilsymbol → „Hilfe“ oder „Mehr“ → „Hilfe“
+- passt Texte und Navigationshinweise an die aktive Oberfläche (v1/v2) an
+- enthält in v2 zusätzlich den Schritt **„Neu hier“** (Übersicht, Navigation, Prüfen, App installieren, Zurückwechseln). Beim ersten Wechsel auf v2 öffnet sich die Anleitung einmalig von selbst: für Nutzer, die die klassische Anleitung schon abgeschlossen oder übersprungen haben, direkt bei „Neu hier“, sonst vollständig. Gespeichert wird das in `preferences.v2TourSeen`.
 
 ## Inhalt
 

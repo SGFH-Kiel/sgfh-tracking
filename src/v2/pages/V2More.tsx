@@ -5,6 +5,7 @@ import {
   DirectionsBoat as BoatIcon,
   GetApp as InstallIcon,
   Group as MembersIcon,
+  Groups as MemberHoursIcon,
   HelpOutline as HelpIcon,
   Logout as LogoutIcon,
   NewReleases as NewsIcon,
@@ -36,7 +37,8 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 /** „Mehr“ auf dem Smartphone: alle Ziele, die nicht in der Navigationsleiste stehen. */
 export const V2More: React.FC<V2MoreProps> = ({ onOpenPreferences, onOpenGuide, onSwitchToClassic }) => {
   const navigate = useNavigate();
-  const { isAdmin, isSuperAdmin, systemConfig, signOut } = useApp();
+  const { isAdmin, isSuperAdmin, isAnyBootswart, systemConfig, signOut } = useApp();
+  const isReviewer = isAdmin || isAnyBootswart;
   const { unseen } = useChangelog();
   const { installable, install, dialog } = useInstallAction();
   const canSeeSettings = isSuperAdmin || (isAdmin && isSeasonModelActive(systemConfig));
@@ -57,8 +59,9 @@ export const V2More: React.FC<V2MoreProps> = ({ onOpenPreferences, onOpenGuide, 
         {installable && item('App installieren', <InstallIcon />, install, 'Eigenes Symbol, Vollbild, angemeldet bleiben')}
       </Section>
 
-      {(isAdmin || canSeeSettings) && (
+      {(isReviewer || canSeeSettings) && (
         <Section title="Verwaltung">
+          {isReviewer && item('Mitgliederstunden', <MemberHoursIcon />, () => navigate('/member-hours'), 'Stand aller Mitglieder, Import und Export')}
           {isAdmin && item('Boote', <BoatIcon />, () => navigate('/boats'))}
           {isAdmin && item('Mitglieder', <MembersIcon />, () => navigate('/members'))}
           {isAdmin && item('Aktivitäten', <TrackingIcon />, () => navigate('/tracking'))}

@@ -299,6 +299,8 @@ export const Layout: React.FC = () => {
             {/* gleiche Adressen wie in v2, damit Links beim Umschalten gültig bleiben */}
             <Route path="/calendar" element={<CalendarTabs />} />
             <Route path="/hours" element={<WorkHoursTracker />} />
+            {/* Adresse aus v2; in der klassischen Ansicht ist die Mitgliederübersicht Teil von „Arbeitsstunden“ */}
+            <Route path="/member-hours" element={<WorkHoursTracker />} />
             <Route path="/changelog" element={<ChangelogView />} />
             {isAdmin && (
               <>

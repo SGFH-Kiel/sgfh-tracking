@@ -11,6 +11,36 @@ import { ChangelogEntry } from './domain/changelog';
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-10-18-tour-mitgliederstunden',
+    date: '2026-10-18',
+    title: 'Kurzanleitung und Mitgliederstunden in der neuen Oberfläche',
+    type: 'improvement',
+    sections: [
+      {
+        audience: 'all',
+        onlyWhen: 'uiV2Released',
+        items: [
+          'Die Kurzanleitung (Hilfe) passt sich der gewählten Oberfläche an.',
+          'Beim ersten Wechsel zur neuen Oberfläche erklärt ein kurzer Schritt „Neu hier“ das Wichtigste – wer die Anleitung schon kennt, muss sie nicht komplett wiederholen.',
+        ],
+      },
+      {
+        audience: 'bootswart',
+        onlyWhen: 'uiV2Released',
+        items: [
+          'Die Mitgliederstunden (Stand aller Mitglieder) gibt es jetzt auch in der neuen Oberfläche: unter „Mehr“ → „Verwaltung“ bzw. in der Seitenleiste.',
+        ],
+      },
+      {
+        audience: 'admin',
+        items: [
+          'Neue Oberfläche: „Mitgliederstunden“ mit Suche, Filtern, Import und Export unter „Mehr“ → „Verwaltung“ (Smartphone) bzw. in der Seitenleiste (Computer).',
+          'Die Kurzanleitung beschreibt in der neuen Oberfläche deren Navigation und den Bereich „Prüfen“.',
+        ],
+      },
+    ],
+  },
+{
     id: '2026-10-18-neue-oberflaeche',
     date: '2026-10-18',
     title: 'Neue Oberfläche',

@@ -17,6 +17,7 @@ export interface UserPreferences {
   showCancelledReservations?: boolean;
   seenChangelogIds?: string[]; // IDs gelesener Einträge unter „Neuigkeiten“
   uiVersion?: 'v1' | 'v2'; // gewählte Oberfläche (v2 nur, wenn freigeschaltet; siehe docs/ux-audit-v2.md)
+  v2TourSeen?: boolean; // Einführung der neuen Oberfläche abgeschlossen oder übersprungen
 }
 
 export type ActivityEntityType = 'reservation' | 'workHour' | 'boat' | 'member' | 'system';
