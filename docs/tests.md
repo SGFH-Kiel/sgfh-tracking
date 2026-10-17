@@ -7,6 +7,12 @@
   - Statusklassifikation
   - Jahreswechsel
   - Randfälle um den Jahreswechsel
+- `src/domain/__tests__/seasons.test.ts`
+  - Abbildung des Stichtags auf Saisons (01.10., 01.04., 01.01.)
+  - Altmodus: gespeicherte Saisons werden ignoriert, Berechnung identisch zum Stichtag
+  - aktives Saisonmodell: Zählung nach gespeicherter Saison, Fallback, keine Berechtigungsklippe
+  - Standard-Saison in der Überlappung, abweichende Wahl
+  - Aktivierungsvorschlag, Backfill-Planung (vor/nach Aktivierung)
 - `src/domain/__tests__/reservations.test.ts`
   - Konflikterkennung
   - Warn- vs. Blockierkonflikte
@@ -25,6 +31,14 @@
   - Benutzerpräferenzen: eigene `preferences` aktualisieren erlaubt, fremde verweigert, Rollen-Manipulation verweigert
   - Seriekopie: Draft mit eigener Identität erlaubt, fremde Identität verweigert, fehlender `eligibilitySnapshot` verweigert
   - Arbeitstermine: Admin kann erstellen, Mitglied ohne Bootswart-Rolle wird verweigert
+  - Saisonmodell: Saisonfelder vor Aktivierung gesperrt, buchbare Saisons, Überlappung, Admin-Saisonwechsel, Backfill/Aktivierung nur Superadmin
+  - Teilnehmerlisten: nur eigener Eintrag (eintragen, austragen, ändern), keine Selbstbestätigung, `maxParticipants`
+  - Private Einträge: keine Selbstbestätigung beim Anlegen (außer Admin bzw. Bootswart des eigenen Boots), `private`/Status unveränderlich, Löschen nur unbestätigt
+  - Benutzer: Selbstregistrierung nur mit Basisfeldern, Admin-Rechte auf `feesPaid`/`skipHours` begrenzt
+  - Reservierungen: `approved` nur ohne Genehmigungspflicht, gesperrte Boote, `feesPaid` Pflicht, Bootswart nur Status
+  - Öffentlicher Feed: passende Projektion erlaubt, manipulierte verweigert
+  - Bootswarte: keine Änderung der Bootswart-Zuordnung, keine Termine auf fremde Boote
+  - Audit-Log: eigene `actorId`, keine Rückdatierung, nur Admins lesen
 
 ## Tests ausführen
 
@@ -40,9 +54,9 @@ npm test -- --watchAll=false --testPathPattern=domain
 npm run test:rules
 ```
 
-Der Befehl startet den Firestore-Emulator automatisch auf Port 9099, führt alle 13 Regeltests aus und beendet den Emulator danach.
+Der Befehl startet den Firestore-Emulator automatisch auf Port 9099, führt alle Regeltests aus (aktuell 67) und beendet den Emulator danach.
 
-**Voraussetzung:** Firebase CLI muss installiert sein (`npm install -g firebase-tools`).
+**Voraussetzung:** Firebase CLI muss installiert sein (`npm install -g firebase-tools`), außerdem Java 11+ für den Emulator.
 
 ## Technische Details
 

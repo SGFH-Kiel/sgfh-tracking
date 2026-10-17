@@ -23,6 +23,7 @@ interface AppContextType {
   createUserAndSendInvite: (request: CreateUserRequest) => Promise<string>;
   reloadBoats: () => Promise<void>;
   reloadCurrentUser: () => Promise<void>;
+  reloadSystemConfig: () => Promise<void>;
 }
 
 const defaultSystemConfig: SystemConfig = {
@@ -52,6 +53,7 @@ const AppContext = createContext<AppContextType>({
   createUserAndSendInvite: async () => { throw new Error('Not implemented'); },
   reloadBoats: async () => { throw new Error('Not implemented'); },
   reloadCurrentUser: async () => { throw new Error('Not implemented'); },
+  reloadSystemConfig: async () => { throw new Error('Not implemented'); },
 });
 
 const AUTO_APPROVE_DOMAINS = ['mitglied.segelgruppe-kiel.de', 'segelgruppe-kiel.de'];
@@ -107,7 +109,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const configDoc = await getDatabaseProvider().getDocument('systemConfig', 'default');
         if (configDoc) {
           setSystemConfig(configDoc as SystemConfig);
-        } else if (isSuperAdmin) {
+        } else if (userDoc.roles?.includes(UserRole.SUPERADMIN)) {
           await getDatabaseProvider().setDocument<SystemConfig>('systemConfig', 'default', defaultSystemConfig);
         }
       }
@@ -125,6 +127,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (error) {
       console.error('Error loading current user:', error);
+    }
+  };
+
+  const reloadSystemConfig = async () => {
+    try {
+      const configDoc = await getDatabaseProvider().getDocument<SystemConfig>('systemConfig', 'default');
+      if (configDoc) {
+        setSystemConfig(configDoc);
+      }
+    } catch (error) {
+      console.error('Error loading system config:', error);
     }
   };
 
@@ -280,7 +293,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteUser,
         createUserAndSendInvite,
         reloadBoats,
-        reloadCurrentUser
+        reloadCurrentUser,
+        reloadSystemConfig,
       }}
     >
       {children}

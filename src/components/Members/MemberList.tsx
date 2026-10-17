@@ -40,6 +40,7 @@ import {
 import { BoatReservation, User, UserRole } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
 import { useCalculateWorkHours } from '../../hooks/memberHooks';
+import { getCurrentSeason, isSeasonModelActive } from '../../domain/seasons';
 import { deletePublicReservationFeed } from '../../domain/reservationSync';
 import { writeActivityLog } from '../../domain/activityLog';
 import humanizeDuration from 'humanize-duration';
@@ -353,7 +354,7 @@ export const MemberList: React.FC = () => {
               <TableCell>E-Mail</TableCell>
               <TableCell>Rolle</TableCell>
               <TableCell>Beitrag</TableCell>
-              <TableCell>Arbeitsstunden</TableCell>
+              <TableCell>{isSeasonModelActive(systemConfig) ? `Arbeitsstunden ${getCurrentSeason(systemConfig)}` : 'Arbeitsstunden'}</TableCell>
               {isSuperAdmin && <TableCell>Aktionen</TableCell>}
             </TableRow>
           </TableHead>

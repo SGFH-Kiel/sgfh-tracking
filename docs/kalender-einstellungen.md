@@ -12,7 +12,7 @@ Die aktive Ansicht wird über folgenden Vorrangsregeln bestimmt:
 
 ## Admin-Konfiguration
 
-Admins können die systemweite Standardansicht für beide Kalender unter **Administration → Systemkonfiguration** einstellen.
+Superadmins können die systemweite Standardansicht für beide Kalender unter **Systemeinstellungen → Systemkonfiguration** einstellen.
 Die Einstellung wird im Firestore-Dokument `systemConfig/default` unter dem Feld `calendarDefaults` gespeichert:
 
 ```json

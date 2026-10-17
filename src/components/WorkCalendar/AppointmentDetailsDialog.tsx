@@ -39,6 +39,15 @@ import 'dayjs/locale/de';
 import { User, WorkAppointment, WorkParticipant } from '../../types/models';
 import { CopyAppointmentSeriesDialog } from './CopyAppointmentSeriesDialog';
 import { useApp } from '../../contexts/AppContext';
+import {
+  buildParticipantSeasonFields,
+  getBookableSeasons,
+  getManageableSeasons,
+  isSeasonModelActive,
+  resolveEntrySeason,
+} from '../../domain/seasons';
+import { useDefaultSeason } from '../../hooks/memberHooks';
+import { SeasonChip, SeasonSelect } from '../Members/SeasonFields';
 
 dayjs.locale('de');
 
@@ -59,7 +68,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   onUpdate,
   onCopy,
 }) => {
-  const { isAdmin, isSuperAdmin, database, boats, currentUser } = useApp();
+  const { isAdmin, isSuperAdmin, database, boats, currentUser, systemConfig } = useApp();
   const { enqueueSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -70,6 +79,12 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   const [usersLoading, setUsersLoading] = useState(false);
   const [isBoatPickerOpen, setIsBoatPickerOpen] = useState(false);
   const [boatUpdating, setBoatUpdating] = useState(false);
+  const modelActive = isSeasonModelActive(systemConfig);
+  const bookableSeasons = getBookableSeasons(systemConfig);
+  // Standard-Saison für den eigenen Beitritt bzw. eine eigene Saisonänderung
+  const ownSeasonInfo = useDefaultSeason(currentUser, open && modelActive);
+  const [joinSeason, setJoinSeason] = useState<number | null>(null);
+  const selectedJoinSeason = joinSeason ?? ownSeasonInfo.defaultSeason;
 
   useEffect(() => {
     if (open) {
@@ -119,6 +134,12 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   const canEditBoat = !appointment.private && (isSuperAdmin || isAdmin);
   const canAddParticipants = !appointment.private && canManageParticipants;
   const isMyPrivateAppointment = appointment.private && appointment.participants.some(p => p.userId === currentUser?.id);
+  // Eigene private Einträge sind nach der Bestätigung gesperrt (auch für das Löschen).
+  const canDeleteOwnPrivate = !!isMyPrivateAppointment && !hasConfirmedParticipants;
+  // Bootswarte dürfen Termine nur ihren eigenen Booten zuordnen.
+  const editableBoats = (isAdmin || isSuperAdmin)
+    ? boats
+    : boats.filter((boat) => boat.bootswart === currentUser?.id || boat.bootswart2 === currentUser?.id);
   const isParticipantLimitReached = Boolean(appointment.maxParticipants && appointment.participants.length >= appointment.maxParticipants);
   const appointmentScopeLabel = appointment.private
     ? 'Privater Termin'
@@ -129,6 +150,18 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   const isParticipant = appointment.participants.some(
     (p) => p.userId === currentUser?.id
   );
+  const showJoinSeasonSelect = modelActive && !isParticipant && !appointment.private && bookableSeasons.length > 1;
+
+  // Standard-Saison für ein Mitglied, das ein Admin/Bootswart hinzufügt
+  const addSeasonInfo = useDefaultSeason(selectedUserToAdd, open && modelActive && canAddParticipants && !!selectedUserToAdd);
+  const [addSeason, setAddSeason] = useState<number | null>(null);
+  const selectedAddSeason = addSeason ?? addSeasonInfo.defaultSeason;
+  useEffect(() => {
+    setAddSeason(null);
+  }, [selectedUserToAdd?.id]);
+  useEffect(() => {
+    if (open) setJoinSeason(null);
+  }, [open]);
 
   const selectableUsers = memberOptions
     .filter((user) => !appointment.participants.some((participant) => participant.userId === user.id))
@@ -172,7 +205,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
     };
   }, [canAddParticipants, database, open]);
 
-  const createParticipant = (user: Pick<User, 'id' | 'displayName'>): WorkParticipant => {
+  const createParticipant = (user: Pick<User, 'id' | 'displayName'>, season: number, defaultSeason: number): WorkParticipant => {
     const shouldAutoConfirm = isAppointmentBootswart && user.id === currentUser?.id;
 
     return {
@@ -181,6 +214,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
       status: shouldAutoConfirm ? 'confirmed' : 'pending',
       createdAt: new Date(),
       updatedAt: new Date(),
+      ...buildParticipantSeasonFields(systemConfig, season, defaultSeason),
     };
   };
 
@@ -198,7 +232,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
       }
 
       await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
-        participants: [...latestAppointment.participants, createParticipant(currentUser)],
+        participants: [...latestAppointment.participants, createParticipant(currentUser, selectedJoinSeason, ownSeasonInfo.defaultSeason)],
       });
       await onUpdate?.();
     } catch (error) {
@@ -243,7 +277,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
       }
 
       await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
-        participants: [...latestAppointment.participants, createParticipant(selectedUserToAdd)],
+        participants: [...latestAppointment.participants, createParticipant(selectedUserToAdd, selectedAddSeason, addSeasonInfo.defaultSeason)],
       });
       setSelectedUserToAdd(null);
       await onUpdate?.();
@@ -310,6 +344,50 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
     }
   };
 
+  const handleParticipantSeasonChange = async (participantId: string, season: number) => {
+    if (!currentUser) return;
+    const byManager = canManageParticipants;
+    setLoading(true);
+    try {
+      const latestAppointment = await getLatestAppointment();
+      if (!latestAppointment) return;
+      const target = latestAppointment.participants.find((p) => p.userId === participantId);
+      if (!target) return;
+      const previousSeason = resolveEntrySeason(latestAppointment, target, systemConfig);
+      const updatedParticipants = latestAppointment.participants.map((p) => {
+        if (p.userId !== participantId) return p;
+        const { season: _season, seasonManual: _manual, ...rest } = p;
+        // Eine Korrektur durch Admin/Bootswart gilt als verbindlich; die Wahl eines Mitglieds wird gegen den Vorschlag geprüft.
+        const seasonFields = byManager
+          ? { season }
+          : buildParticipantSeasonFields(systemConfig, season, ownSeasonInfo.defaultSeason);
+        return { ...rest, ...seasonFields, updatedAt: new Date() };
+      });
+      await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, { participants: updatedParticipants });
+      await writeActivityLog(database, {
+        type: 'workHour.updated',
+        entityId: appointment.id,
+        entityType: 'workHour',
+        actorId: currentUser.id,
+        actorName: currentUser.displayName,
+        details: {
+          action: 'season_changed',
+          title: appointment.title,
+          targetUserId: participantId,
+          targetUserName: target.userName,
+          previousSeason,
+          newSeason: season,
+        },
+      });
+      await onUpdate?.();
+    } catch (error) {
+      console.error('Error changing participant season:', error);
+      enqueueSnackbar('Fehler beim Ändern der Saison', { variant: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleBoatChange = async (nextBoatId: string) => {
     if (boatUpdating) return;
     const normalized = nextBoatId || '';
@@ -352,8 +430,15 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   const handleSave = async () => {
     setLoading(true);
     try {
-      await database.updateDocument('workAppointments', appointment.id, {
-        ...editedData,
+      // Nur Termin-Metadaten schreiben – die Teilnehmerliste wird über eigene Aktionen gepflegt und darf
+      // nicht mit einem veralteten Stand überschrieben werden.
+      await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
+        title: editedData.title ?? appointment.title,
+        description: editedData.description ?? appointment.description,
+        startTime: editedData.startTime ?? appointment.startTime,
+        endTime: editedData.endTime ?? appointment.endTime,
+        supplies: editedData.supplies ?? appointment.supplies,
+        ...(!appointment.private ? { boatId: editedData.boatId ?? appointment.boatId ?? '' } : {}),
         updatedAt: new Date()
       });
       await onUpdate?.();
@@ -533,8 +618,8 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                     value={editedData.boatId ?? ''}
                     onChange={(e: SelectChangeEvent) => setEditedData({ ...editedData, boatId: e.target.value })}
                   >
-                    <MenuItem value="">Kein Boot</MenuItem>
-                    {boats.map((boat) => (
+                    {(isAdmin || isSuperAdmin) && <MenuItem value="">Kein Boot</MenuItem>}
+                    {editableBoats.map((boat) => (
                       <MenuItem key={boat.id} value={boat.id}>{boat.name}</MenuItem>
                     ))}
                   </Select>
@@ -632,10 +717,24 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                     />
                   )}
                 />
+                {modelActive && selectedUserToAdd && bookableSeasons.length > 1 && (
+                  <SeasonSelect
+                    size="small"
+                    sx={{ flex: 1, minWidth: 200 }}
+                    value={selectedAddSeason}
+                    onChange={setAddSeason}
+                    options={bookableSeasons}
+                    defaultSeason={addSeasonInfo.defaultSeason}
+                    currentSeason={addSeasonInfo.currentSeason}
+                    missingCurrentMinutes={addSeasonInfo.missingCurrentMinutes}
+                    disabled={addSeasonInfo.loading}
+                    forOtherMember
+                  />
+                )}
                 <Button
                   variant="outlined"
                   onClick={handleAddParticipant}
-                  disabled={loading === true || usersLoading || !selectedUserToAdd}
+                  disabled={loading === true || usersLoading || !selectedUserToAdd || (modelActive && addSeasonInfo.loading)}
                 >
                   Hinzufügen
                 </Button>
@@ -662,10 +761,25 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                   <ListItemText
                     secondaryTypographyProps={{ component: 'div' }}
                     primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
                           {participant.userName}
                         </Typography>
+                        {modelActive && (
+                          <SeasonChip
+                            season={resolveEntrySeason(appointment, participant, systemConfig)}
+                            manual={participant.seasonManual === true}
+                            options={
+                              canManageParticipants
+                                ? getManageableSeasons(systemConfig, new Date(), resolveEntrySeason(appointment, participant, systemConfig))
+                                : participant.userId === currentUser?.id && participant.status !== 'confirmed' && !appointment.private
+                                  ? bookableSeasons
+                                  : undefined
+                            }
+                            onChange={(season) => handleParticipantSeasonChange(participant.userId, season)}
+                            disabled={loading === true || (!canManageParticipants && ownSeasonInfo.loading)}
+                          />
+                        )}
                         {/* show status */}
                         <Chip
                           size="small"
@@ -802,10 +916,22 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
           </>
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50' }}>
-        <Box sx={{ display: 'flex', gap: 2, width: '100%', justifyContent: 'space-between' }}>
+      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
+        {showJoinSeasonSelect && !isEditing && (
+          <SeasonSelect
+            size="small"
+            value={selectedJoinSeason}
+            onChange={setJoinSeason}
+            options={bookableSeasons}
+            defaultSeason={ownSeasonInfo.defaultSeason}
+            currentSeason={ownSeasonInfo.currentSeason}
+            missingCurrentMinutes={ownSeasonInfo.missingCurrentMinutes}
+            disabled={ownSeasonInfo.loading}
+          />
+        )}
+        <Box sx={{ display: 'flex', gap: 2, width: '100%', justifyContent: 'space-between', ml: '0 !important' }}>
           <Box sx={{ display: 'flex', gap: 1 }}>
-            {(canEdit || isMyPrivateAppointment) && onDelete && !isEditing && (
+            {(canEdit || canDeleteOwnPrivate) && onDelete && !isEditing && (
               <Button
                 color="error"
                 variant="outlined"
@@ -816,7 +942,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                 Löschen
               </Button>
             )}
-            {canEdit && onCopy && !isEditing && (
+            {canEdit && onCopy && !isEditing && !appointment.private && (
               <Button
                 color="secondary"
                 variant="outlined"
@@ -871,7 +997,7 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
                   <Button
                     variant="contained"
                     onClick={handleJoin}
-                    disabled={loading === true || Boolean(isParticipantLimitReached && !canManageParticipants)}
+                    disabled={loading === true || Boolean(isParticipantLimitReached && !canManageParticipants) || (showJoinSeasonSelect && ownSeasonInfo.loading)}
                     color="primary"
                   >
                     Teilnehmen

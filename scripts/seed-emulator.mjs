@@ -128,8 +128,10 @@ await setUser(memberSkipHoursUid, {
 
 console.log('Creating system config...');
 
-await db.collection('systemConfig').doc('config').set({
-  yearChangeDate: admin.firestore.Timestamp.fromDate(new Date('2000-04-01')),
+// Gleicher Stichtag wie im Produktivsystem (01.10.). Das Saisonmodell ist bewusst NICHT aktiviert,
+// damit Backfill und Aktivierung lokal durchgespielt werden können.
+await db.collection('systemConfig').doc('default').set({
+  yearChangeDate: admin.firestore.Timestamp.fromDate(new Date(2000, 9, 1)),
   workHourThreshold: 8,
   featureFlags: { enableMemberCreation: true },
   createdAt: now,
@@ -180,6 +182,31 @@ await db.collection('boats').doc('boat-blocked').set({
 // ---------------------------------------------------------------------------
 
 console.log('Creating work appointments...');
+
+const workDate0 = new Date();
+workDate0.setDate(workDate0.getDate() - 75);
+workDate0.setHours(9, 0, 0, 0);
+const workDate0End = new Date(workDate0);
+workDate0End.setHours(14, 0, 0, 0);
+
+// Sommer-Einsatz: zusammen mit wa-past-1 erfüllt Max die Stunden der laufenden Saison.
+await db.collection('workAppointments').doc('wa-past-0').set({
+  title: 'Steganlage streichen',
+  description: 'Privater Einsatz',
+  startTime: admin.firestore.Timestamp.fromDate(workDate0),
+  endTime: admin.firestore.Timestamp.fromDate(workDate0End),
+  maxParticipants: 1,
+  boatId: '',
+  participants: [
+    { userId: memberUid, userName: 'Max Mustermann', status: 'confirmed', startTime: admin.firestore.Timestamp.fromDate(workDate0), endTime: admin.firestore.Timestamp.fromDate(workDate0End), createdAt: now, updatedAt: now },
+  ],
+  supplies: [],
+  private: true,
+  createdByUserId: memberUid,
+  createdByUserName: 'Max Mustermann',
+  createdAt: now,
+  updatedAt: now,
+});
 
 const workDate1 = new Date();
 workDate1.setDate(workDate1.getDate() - 30);

@@ -22,6 +22,7 @@ import {
   ArrowForward as ArrowForwardIcon,
 } from '@mui/icons-material';
 import { useApp } from '../../contexts/AppContext';
+import { isSeasonModelActive } from '../../domain/seasons';
 import { User } from '../../types/models';
 
 interface UserGuideProps {
@@ -52,7 +53,7 @@ const SectionTitle = ({ children }: { children: React.ReactNode }) => (
   </Typography>
 );
 
-const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean): GuideStepDefinition[] => [
+const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean, seasonModelActive: boolean): GuideStepDefinition[] => [
   {
     title: 'Willkommen',
     icon: <span style={{ fontSize: 22 }}>👋</span>,
@@ -103,8 +104,19 @@ const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean): GuideStepDefinit
     content: (
       <Box>
         <Typography variant="body2" sx={{ mb: 2 }}>
-          Jedes Mitglied muss pro Jahr eine Mindestanzahl an Arbeitsstunden leisten. Den aktuellen Stand sehen Sie unter <strong>Arbeitsstunden → Meine Stunden</strong>.
+          Jedes Mitglied muss pro {seasonModelActive ? 'Saison' : 'Jahr'} eine Mindestanzahl an Arbeitsstunden leisten. Den aktuellen Stand sehen Sie unter <strong>Arbeitsstunden → Meine Stunden</strong>.
         </Typography>
+
+        {seasonModelActive && (
+          <>
+            <SectionTitle>Saisons</SectionTitle>
+            <Typography variant="body2" sx={{ mb: 1.5 }}>
+              Jeder Eintrag zählt für eine Saison (z. B. <em>Saison 2026</em>). Für Reservierungen zählen die Stunden der aktuellen Saison.
+              Gegen Saisonende wird die Buchung für die nächste Saison geöffnet: Dann können Sie beim Eintragen wählen, für welche Saison die Stunden zählen.
+              Fehlen Ihnen noch Stunden für die laufende Saison, wird diese vorgeschlagen – sonst die nächste.
+            </Typography>
+          </>
+        )}
 
         <SectionTitle>Fortschrittsanzeige</SectionTitle>
         <Box sx={{ p: 1.5, bgcolor: 'grey.50', borderRadius: 1, mb: 1.5 }}>
@@ -301,12 +313,13 @@ const buildSteps = (isAdmin: boolean, isAnyBootswart: boolean): GuideStepDefinit
 ];
 
 export const UserGuide: React.FC<UserGuideProps> = ({ open, onClose }) => {
-  const { currentUser, database, reloadCurrentUser, isAdmin, isAnyBootswart } = useApp();
+  const { currentUser, database, reloadCurrentUser, isAdmin, isAnyBootswart, systemConfig } = useApp();
+  const seasonModelActive = isSeasonModelActive(systemConfig);
   const [activeStep, setActiveStep] = useState(0);
 
   const GUIDE_STEPS = useMemo(
-    () => buildSteps(isAdmin, isAnyBootswart),
-    [isAdmin, isAnyBootswart],
+    () => buildSteps(isAdmin, isAnyBootswart, seasonModelActive),
+    [isAdmin, isAnyBootswart, seasonModelActive],
   );
   const currentStep = useMemo(() => GUIDE_STEPS[activeStep], [GUIDE_STEPS, activeStep]);
 

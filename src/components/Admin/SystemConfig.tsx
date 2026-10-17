@@ -18,6 +18,8 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { SystemConfig as SystemConfigType, CalendarView } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
+import { isSeasonModelActive } from '../../domain/seasons';
+import { SeasonControl } from './SeasonControl';
 
 const CALENDAR_VIEW_OPTIONS: { value: CalendarView; label: string }[] = [
   { value: 'month', label: 'Monat' },
@@ -35,7 +37,8 @@ export const SystemConfig: React.FC = () => {
       { text: 'Systemeinstellungen' },
     ]);
   }, [setBreadcrumbs]);
-  const { isAdmin, database } = useApp();
+  const { isAdmin, isSuperAdmin, database, systemConfig, reloadSystemConfig } = useApp();
+  const modelActive = isSeasonModelActive(systemConfig);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,16 +70,27 @@ export const SystemConfig: React.FC = () => {
   }, [database]);
 
   const handleSave = async () => {
-    if (!isAdmin) return;
+    if (!isSuperAdmin) return;
     setSaving(true);
     setError(null);
     setSuccess(false);
 
     try {
-      await database.setDocument<SystemConfigType>('systemConfig', 'default', {
-        ...config,
+      // Nur die Felder dieses Formulars schreiben, damit die Saisonsteuerung nicht mit einem
+      // veralteten Stand überschrieben wird.
+      const generalSettings: Partial<SystemConfigType> = {
+        yearChangeDate: config.yearChangeDate,
+        workHourThreshold: config.workHourThreshold,
+        ...(config.calendarDefaults ? { calendarDefaults: config.calendarDefaults } : {}),
         updatedAt: new Date(),
-      });
+      };
+      const existing = await database.getDocument<SystemConfigType>('systemConfig', 'default');
+      if (existing) {
+        await database.updateDocument<SystemConfigType>('systemConfig', 'default', generalSettings);
+      } else {
+        await database.setDocument<SystemConfigType>('systemConfig', 'default', { ...config, ...generalSettings });
+      }
+      await reloadSystemConfig();
       setSuccess(true);
     } catch (err) {
       setError('Fehler beim Speichern der Konfiguration');
@@ -86,7 +100,8 @@ export const SystemConfig: React.FC = () => {
     }
   };
 
-  if (!isAdmin) {
+  // Superadmins verwalten alle Einstellungen; Admins sehen nach Aktivierung des Saisonmodells nur die Saisonsteuerung.
+  if (!isSuperAdmin && !(isAdmin && modelActive)) {
     return (
       <Alert severity="error">
         Sie haben keine Berechtigung, diese Seite zu sehen.
@@ -98,8 +113,13 @@ export const SystemConfig: React.FC = () => {
     return <CircularProgress />;
   }
 
+  if (!isSuperAdmin) {
+    return <SeasonControl />;
+  }
+
   return (
-    <>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <SeasonControl />
     <Paper sx={{ p: 3 }}>
       <Typography variant="h5" gutterBottom>
         Systemkonfiguration
@@ -107,7 +127,7 @@ export const SystemConfig: React.FC = () => {
 
       <Box sx={{ mt: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
         <DatePicker
-          label="Datum Jahreswechsel"
+          label={modelActive ? 'Stichtag für Alt-Einträge ohne Saison' : 'Datum Jahreswechsel'}
           value={dayjs(config.yearChangeDate).year(dayjs().year())}
           onChange={(date: dayjs.Dayjs | null) => {
             if (date) {
@@ -119,12 +139,17 @@ export const SystemConfig: React.FC = () => {
           views={['month', 'day']}
           format="DD.MM"
           slotProps={{
-            textField: { size: 'medium' },
+            textField: {
+              size: 'medium',
+              helperText: modelActive
+                ? 'Wird nur noch für Einträge ohne gespeicherte Saison verwendet. Die aktuelle Saison wird über die Saisonsteuerung gewechselt.'
+                : undefined,
+            },
           }}
         />
 
         <TextField
-          label="Mindestarbeitsstunden pro Jahr"
+          label={modelActive ? 'Mindestarbeitsstunden pro Saison' : 'Mindestarbeitsstunden pro Jahr'}
           type="number"
           value={config.workHourThreshold}
           onChange={(e) =>
@@ -199,6 +224,6 @@ export const SystemConfig: React.FC = () => {
         </Box>
       </Box>
     </Paper>
-    </>
+    </Box>
   );
 };

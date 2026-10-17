@@ -50,7 +50,17 @@ import { WorkAppointment, WorkParticipant } from '../../types/models';
 import { PrivateWorkHoursDialog } from './PrivateWorkHoursDialog';
 import { AppointmentDetailsDialog } from '../WorkCalendar/AppointmentDetailsDialog';
 import { ImportWorkHoursDialog } from './ImportWorkHoursDialog';
+import { SeasonChip } from './SeasonFields';
 import { utils, writeFile } from 'xlsx';
+import { calculateUserWorkHourSnapshot } from '../../domain/workHours';
+import {
+  collectKnownSeasons,
+  formatSeason,
+  getCurrentSeason,
+  isNextSeasonOpen,
+  isSeasonModelActive,
+  resolveEntrySeason,
+} from '../../domain/seasons';
 
 const humanizer = humanizeDuration.humanizer({ language: 'de', round: true, units: ['h', 'm'], delimiter: ' und ' });
 const shortHumanizer = humanizeDuration.humanizer({ language: 'short', round: true, delimiter: ' ', units: ['h', 'm'], maxDecimalPoints: 1, languages: { short: { h: () => 'h', m: () => 'm' } } });
@@ -122,7 +132,11 @@ export const WorkHoursTracker: React.FC = () => {
   const [detailAppointment, setDetailAppointment] = useState<WorkAppointment | undefined>(undefined);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
-  const { userWorkHours, loading, refreshing, error, reload: refreshAppointments } = useCalculateWorkHours();
+  const modelActive = isSeasonModelActive(systemConfig);
+  const currentSeason = getCurrentSeason(systemConfig);
+  const [selectedSeason, setSelectedSeason] = useState<number | undefined>(undefined);
+  const { userWorkHours, loading, refreshing, error, appointments: allAppointments, season: displayedSeason, reload: refreshAppointments } =
+    useCalculateWorkHours(undefined, undefined, modelActive ? selectedSeason : undefined);
   const { setBreadcrumbs } = usePageTitle();
   // Optimistic local overrides per `${appointmentId}:${userId}` to keep scroll position
   // and avoid status flicker between status change and the asynchronous refresh.
@@ -145,6 +159,43 @@ export const WorkHoursTracker: React.FC = () => {
     [boats, currentUser?.id]
   );
 
+  const knownSeasons = useMemo(
+    () => (modelActive ? collectKnownSeasons(allAppointments, systemConfig) : []),
+    [modelActive, allAppointments, systemConfig],
+  );
+
+  // Offene Prüfungen je Saison (für Admins alle, für Bootswarte nur eigene Boote)
+  const pendingBySeason = useMemo(() => {
+    const counts = new Map<number, number>();
+    if (!modelActive || !(isAdmin || isAnyBootswart)) return counts;
+    allAppointments.forEach((appointment) => {
+      if (!isAdmin && !(appointment.boatId && myBoatIds.has(appointment.boatId))) return;
+      appointment.participants.forEach((participant) => {
+        if (participant.status !== 'pending') return;
+        const season = resolveEntrySeason(appointment, participant, systemConfig);
+        counts.set(season, (counts.get(season) || 0) + 1);
+      });
+    });
+    return counts;
+  }, [modelActive, isAdmin, isAnyBootswart, allAppointments, myBoatIds, systemConfig]);
+
+  const seasonLabel = (season: number) => {
+    if (season === currentSeason) return `${formatSeason(season)} (aktuell)`;
+    if (season === currentSeason + 1 && isNextSeasonOpen(systemConfig)) return `${formatSeason(season)} (nächste)`;
+    return formatSeason(season);
+  };
+
+  // In der Überlappungsphase: Stand der nächsten Saison für das eigene Konto
+  const nextSeasonPreview = useMemo(() => {
+    if (!modelActive || !isNextSeasonOpen(systemConfig) || !currentUser || displayedSeason !== currentSeason) return null;
+    return calculateUserWorkHourSnapshot(currentUser, allAppointments, systemConfig, new Date(), currentSeason + 1).summary;
+  }, [modelActive, systemConfig, currentUser, allAppointments, displayedSeason, currentSeason]);
+
+  const isManualSeasonEntry = useCallback((appointment: WorkAppointment, userId: string) => {
+    if (!modelActive) return false;
+    return appointment.participants.find((p) => p.userId === userId)?.seasonManual === true;
+  }, [modelActive]);
+
   const handleExport = useCallback(() => {
     const wb = utils.book_new();
 
@@ -153,6 +204,7 @@ export const WorkHoursTracker: React.FC = () => {
       // Create metadata section
       const metadata = [
         ['Benutzerinformationen'],
+        ...(modelActive ? [['Saison', String(displayedSeason)]] : []),
         ['Name', userHours.user.displayName],
         ['E-Mail', userHours.user.email || 'N/A'],
         ['Abgeschlossene Stunden', humanizer(userHours.completedDuration)],
@@ -228,8 +280,9 @@ export const WorkHoursTracker: React.FC = () => {
     });
 
     // Save file
-    writeFile(wb, `work_hours_${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [userWorkHours, boats]);
+    const seasonSuffix = modelActive ? `_saison_${displayedSeason}` : '';
+    writeFile(wb, `work_hours${seasonSuffix}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  }, [userWorkHours, boats, modelActive, displayedSeason]);
 
   const handlePrivateHoursDialog = useCallback(() => {
     setEditingAppointment(undefined);
@@ -445,10 +498,37 @@ export const WorkHoursTracker: React.FC = () => {
   
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {modelActive && (
+        <Paper sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+          <FormControl size="small" sx={{ minWidth: 220 }}>
+            <InputLabel id="work-hours-season-label">Saison</InputLabel>
+            <Select
+              labelId="work-hours-season-label"
+              label="Saison"
+              value={displayedSeason}
+              onChange={(e) => setSelectedSeason(Number(e.target.value))}
+            >
+              {knownSeasons.map((season) => (
+                <MenuItem key={season} value={season}>
+                  {seasonLabel(season)}
+                  {(pendingBySeason.get(season) || 0) > 0 && ` · ${pendingBySeason.get(season)} offen`}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 220 }}>
+            {displayedSeason === currentSeason
+              ? 'Diese Saison zählt für die Reservierungsberechtigung.'
+              : displayedSeason > currentSeason
+                ? `Vorgebuchte Stunden für die nächste Saison. Für Reservierungen zählt aktuell ${formatSeason(currentSeason)}.`
+                : 'Abgeschlossene Saison (nur Ansicht).'}
+          </Typography>
+        </Paper>
+      )}
       <Paper sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
           <Typography variant="h5" gutterBottom>
-            Meine Stunden
+            Meine Stunden{modelActive ? ` · ${displayedSeason}` : ''}
           </Typography>
           <StatusChip
             status={
@@ -463,6 +543,21 @@ export const WorkHoursTracker: React.FC = () => {
                       : WORKSTATUS.OPEN
           } overall={true} sx={{ mt: 1, mb: 2 }} />
         </Box>
+        {nextSeasonPreview && (
+          <Alert
+            severity="info"
+            sx={{ mb: 2 }}
+            action={
+              <Button color="inherit" size="small" onClick={() => setSelectedSeason(currentSeason + 1)}>
+                Ansehen
+              </Button>
+            }
+          >
+            Bereits für {formatSeason(currentSeason + 1)} vorgebucht: {shortHumanizer(nextSeasonPreview.completedMinutes * 60000)} bestätigt
+            {nextSeasonPreview.pendingMinutes > 0 && `, ${shortHumanizer(nextSeasonPreview.pendingMinutes * 60000)} ausstehend`}
+            {' '}von {shortHumanizer(nextSeasonPreview.requiredMinutes * 60000)}.
+          </Alert>
+        )}
         {currentUserHours.appointments.upcoming.length > 0 && (
           <Alert severity="info" sx={{ mb: 2 }}>
             Sie haben {currentUserHours.appointments.upcoming.length} ausstehende oder zukünftige Einträge. Diese werden erst nach Bestätigung bzw. nach Durchführung vollständig angerechnet.
@@ -636,7 +731,12 @@ export const WorkHoursTracker: React.FC = () => {
                         {" - "}
                         {end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
                       </TableCell>
-                      <TableCell>{appointment.title}</TableCell>
+                      <TableCell>
+                        {appointment.title}
+                        {isManualSeasonEntry(appointment, currentUser.id) && (
+                          <SeasonChip season={displayedSeason} manual sx={{ ml: 1 }} />
+                        )}
+                      </TableCell>
                       <TableCell>{shortHumanizer(duration)}</TableCell>
                       <TableCell>
                         <StatusChip overall={false} status={
@@ -719,6 +819,22 @@ export const WorkHoursTracker: React.FC = () => {
             </Box>
           </Box>
 
+          {modelActive && Array.from(pendingBySeason.entries())
+            .filter(([season, count]) => season !== displayedSeason && count > 0)
+            .map(([season, count]) => (
+              <Alert
+                key={season}
+                severity="info"
+                sx={{ mb: 2 }}
+                action={
+                  <Button color="inherit" size="small" onClick={() => setSelectedSeason(season)}>
+                    Wechseln
+                  </Button>
+                }
+              >
+                In {formatSeason(season)} warten {count} Einträge auf Prüfung.
+              </Alert>
+            ))}
           <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <TextField
               size="small"
@@ -920,7 +1036,12 @@ export const WorkHoursTracker: React.FC = () => {
                                             {" - "}
                                             {end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
                                           </TableCell>
-                                          <TableCell>{appointment.title}</TableCell>
+                                          <TableCell>
+                                            {appointment.title}
+                                            {isManualSeasonEntry(appointment, user.id) && (
+                                              <SeasonChip season={displayedSeason} manual sx={{ ml: 1 }} />
+                                            )}
+                                          </TableCell>
                                           <TableCell>{shortHumanizer(duration)}</TableCell>
                                           <TableCell>
                                             <StatusChip overall={false} status={

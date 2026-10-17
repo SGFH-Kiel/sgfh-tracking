@@ -16,10 +16,13 @@ import {
 import { Save as SaveIcon } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers';
 import dayjs, { Dayjs } from 'dayjs';
-import { WorkAppointment } from '../../types/models';
+import { WorkAppointment, WorkParticipant } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
 import { writeActivityLog } from '../../domain/activityLog';
+import { buildParticipantSeasonFields, getBookableSeasons, isSeasonModelActive, isValidSeason } from '../../domain/seasons';
+import { useDefaultSeason } from '../../hooks/memberHooks';
 import { useSnackbar } from 'notistack';
+import { SeasonSelect } from './SeasonFields';
 
 interface PrivateWorkHoursDialogProps {
   open: boolean;
@@ -42,9 +45,20 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
   onUpdate,
   appointment: editAppointment,
 }) => {
-  const { database, currentUser, isAdmin, isAnyBootswart, boats } = useApp();
+  const { database, currentUser, isAdmin, isAnyBootswart, boats, systemConfig } = useApp();
   const { enqueueSnackbar } = useSnackbar();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const modelActive = isSeasonModelActive(systemConfig);
+  const seasonInfo = useDefaultSeason(currentUser, open && modelActive);
+  const editParticipant = editAppointment?.participants.find(p => p.userId === currentUser?.id);
+  const existingSeason = modelActive && isValidSeason(editParticipant?.season) ? editParticipant!.season! : undefined;
+  const bookableSeasons = getBookableSeasons(systemConfig);
+  const seasonOptions = existingSeason !== undefined && !bookableSeasons.includes(existingSeason)
+    ? [existingSeason, ...bookableSeasons]
+    : bookableSeasons;
+  const [season, setSeason] = useState<number | null>(null);
+  const selectedSeason = season ?? existingSeason ?? seasonInfo.defaultSeason;
+  const showSeasonSelect = modelActive && seasonOptions.length > 1;
   const [formData, setFormData] = useState<PrivateWorkHoursFormData>({
     title: '',
     description: '',
@@ -55,6 +69,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
 
   useEffect(() => {
     if (open) {
+      setSeason(null);
       if (editAppointment) {
         const participant = editAppointment.participants.find(p => p.userId === currentUser?.id);
         setFormData({
@@ -84,11 +99,19 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
     const boat = boats.find(b => b.id === formData.boatId);
     const autoConfirm = isAdmin || (boat && isAnyBootswart && (boat.bootswart === currentUser.id || boat.bootswart2 === currentUser.id));
 
+    // Vor Aktivierung des Saisonmodells bleiben die Saisonfelder unangetastet (kein Verhaltensunterschied).
+    const seasonChanged = modelActive && selectedSeason !== existingSeason;
+    const applySeason = (participant: WorkParticipant): WorkParticipant => {
+      if (!seasonChanged) return participant;
+      const { season: _season, seasonManual: _manual, ...rest } = participant;
+      return { ...rest, ...buildParticipantSeasonFields(systemConfig, selectedSeason, seasonInfo.defaultSeason) };
+    };
+
     try {
       if (editAppointment) {
         const updatedParticipants = editAppointment.participants.map(p =>
           p.userId === currentUser.id
-            ? { ...p, startTime: formData.startTime.toDate(), endTime: formData.endTime.toDate(), updatedAt: new Date() }
+            ? applySeason({ ...p, startTime: formData.startTime.toDate(), endTime: formData.endTime.toDate(), updatedAt: new Date() })
             : p
         );
         await database.updateDocument<WorkAppointment>('workAppointments', editAppointment.id, {
@@ -106,7 +129,10 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
           entityType: 'workHour',
           actorId: currentUser.id,
           actorName: currentUser.displayName,
-          details: { title: formData.title || editAppointment.title },
+          details: {
+            title: formData.title || editAppointment.title,
+            ...(seasonChanged ? { previousSeason: existingSeason ?? null, season: selectedSeason } : {}),
+          },
         });
         enqueueSnackbar('Arbeitsstunden aktualisiert.', { variant: 'success' });
       } else {
@@ -125,6 +151,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
             endTime: formData.endTime.toDate(),
             createdAt: new Date(),
             updatedAt: new Date(),
+            ...buildParticipantSeasonFields(systemConfig, selectedSeason, seasonInfo.defaultSeason),
           }],
           supplies: [],
           private: true,
@@ -140,7 +167,12 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
           entityType: 'workHour',
           actorId: currentUser.id,
           actorName: currentUser.displayName,
-          details: { title: newAppointment.title, private: true, autoConfirmed: autoConfirm },
+          details: {
+            title: newAppointment.title,
+            private: true,
+            autoConfirmed: autoConfirm,
+            ...(modelActive ? { season: selectedSeason, seasonManual: selectedSeason !== seasonInfo.defaultSeason } : {}),
+          },
         });
         enqueueSnackbar(
           autoConfirm
@@ -231,6 +263,17 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
               format="DD.MM.YYYY HH:mm"
             />
           </Box>
+          {showSeasonSelect && (
+            <SeasonSelect
+              value={selectedSeason}
+              onChange={setSeason}
+              options={seasonOptions}
+              defaultSeason={seasonInfo.defaultSeason}
+              currentSeason={seasonInfo.currentSeason}
+              missingCurrentMinutes={seasonInfo.missingCurrentMinutes}
+              disabled={seasonInfo.loading}
+            />
+          )}
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50' }}>
@@ -243,7 +286,7 @@ export const PrivateWorkHoursDialog: React.FC<PrivateWorkHoursDialogProps> = ({
             variant="contained"
             color="primary"
             startIcon={<SaveIcon />}
-            disabled={isSubmitting}
+            disabled={isSubmitting || (modelActive && seasonInfo.loading)}
           >
             {editAppointment ? 'Aktualisieren' : 'Speichern'}
           </Button>

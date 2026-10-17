@@ -39,6 +39,22 @@ describe('firestore rules', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+      await setDoc(doc(db, 'users', 'superadmin-1'), {
+        email: 'super@example.com',
+        displayName: 'Superadmin',
+        roles: ['SUPERADMIN'],
+        feesPaid: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      await setDoc(doc(db, 'users', 'other-1'), {
+        email: 'other@example.com',
+        displayName: 'Andere',
+        roles: ['MEMBER'],
+        feesPaid: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
       await setDoc(doc(db, 'users', 'bootswart2-1'), {
         email: 'bootswart2@example.com',
         displayName: 'Zweiter Bootswart',
@@ -815,5 +831,373 @@ describe('firestore rules', () => {
         updatedAt: new Date(),
       }],
     }));
+  });
+
+  // ---------------------------------------------------------------------------
+  // Saisonmodell & Härtung (Audit 2026-10)
+  // ---------------------------------------------------------------------------
+
+  const seed = async (path: string, id: string, data: Record<string, unknown>) => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), path, id), data);
+    });
+  };
+
+  const seasonConfig = (overrides: Record<string, unknown> = {}) => ({
+    yearChangeDate: new Date(2000, 9, 1),
+    workHourThreshold: 8,
+    currentSeason: 2026,
+    nextSeasonOpen: true,
+    seasonBackfillAt: new Date('2026-10-16T10:00:00Z'),
+    seasonModelActivatedAt: new Date('2026-10-17T10:00:00Z'),
+    ...overrides,
+  });
+
+  const participant = (overrides: Record<string, unknown> = {}) => ({
+    userId: 'member-1',
+    userName: 'Mitglied',
+    status: 'pending',
+    createdAt: new Date('2026-10-01T00:00:00Z'),
+    updatedAt: new Date('2026-10-01T00:00:00Z'),
+    ...overrides,
+  });
+
+  const privateAppointment = (participantOverrides: Record<string, unknown> = {}, overrides: Record<string, unknown> = {}) => ({
+    title: 'Private Arbeit',
+    description: '',
+    private: true,
+    createdByUserId: 'member-1',
+    createdByUserName: 'Mitglied',
+    participants: [participant({
+      startTime: new Date('2026-10-10T09:00:00Z'),
+      endTime: new Date('2026-10-10T11:00:00Z'),
+      ...participantOverrides,
+    })],
+    supplies: [],
+    startTime: new Date('2026-10-10T09:00:00Z'),
+    endTime: new Date('2026-10-10T11:00:00Z'),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  });
+
+  const publicAppointment = (participants: Record<string, unknown>[], overrides: Record<string, unknown> = {}) => ({
+    title: 'Öffentliche Arbeit',
+    description: '',
+    boatId: 'boat-1',
+    participants,
+    supplies: [],
+    startTime: new Date('2026-10-12T09:00:00Z'),
+    endTime: new Date('2026-10-12T13:00:00Z'),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  });
+
+  const other = participant({ userId: 'other-1', userName: 'Andere', status: 'confirmed' });
+
+  describe('season model', () => {
+    it('denies season fields on private entries while the season model is inactive', async () => {
+      await seed('systemConfig', 'default', seasonConfig({ seasonModelActivatedAt: null, currentSeason: null }));
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertFails(setDoc(doc(db, 'workAppointments', 'wa-s1'), privateAppointment({ season: 2027 })));
+      await assertSucceeds(setDoc(doc(db, 'workAppointments', 'wa-s1b'), privateAppointment()));
+    });
+
+    it('keeps backfilled season values editable before activation when unchanged', async () => {
+      await seed('systemConfig', 'default', seasonConfig({ seasonModelActivatedAt: null }));
+      await seed('workAppointments', 'wa-s2', privateAppointment({ season: 2027 }));
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertSucceeds(updateDoc(doc(db, 'workAppointments', 'wa-s2'), {
+        title: 'Geändert',
+        participants: [participant({ season: 2027, startTime: new Date('2026-10-10T10:00:00Z'), endTime: new Date('2026-10-10T12:00:00Z') })],
+      }));
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-s2'), {
+        participants: [participant({ season: 2026, startTime: new Date('2026-10-10T10:00:00Z'), endTime: new Date('2026-10-10T12:00:00Z') })],
+      }));
+    });
+
+    it('allows booking current or open next season and rejects others once active', async () => {
+      await seed('systemConfig', 'default', seasonConfig());
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertSucceeds(setDoc(doc(db, 'workAppointments', 'wa-s3a'), privateAppointment({ season: 2026 })));
+      await assertSucceeds(setDoc(doc(db, 'workAppointments', 'wa-s3b'), privateAppointment({ season: 2027, seasonManual: true })));
+      await assertFails(setDoc(doc(db, 'workAppointments', 'wa-s3c'), privateAppointment({ season: 2028 })));
+      await assertFails(setDoc(doc(db, 'workAppointments', 'wa-s3d'), privateAppointment({ season: 2025 })));
+      await assertFails(setDoc(doc(db, 'workAppointments', 'wa-s3e'), privateAppointment()));
+    });
+
+    it('rejects the next season while booking is closed', async () => {
+      await seed('systemConfig', 'default', seasonConfig({ nextSeasonOpen: false }));
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertFails(setDoc(doc(db, 'workAppointments', 'wa-s4'), privateAppointment({ season: 2027 })));
+    });
+
+    it('lets members join with a bookable season and change only their own open entry', async () => {
+      await seed('systemConfig', 'default', seasonConfig());
+      await seed('workAppointments', 'wa-s5', publicAppointment([other]));
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      const joined = participant({ season: 2027 });
+      await assertSucceeds(updateDoc(doc(db, 'workAppointments', 'wa-s5'), { participants: [other, joined] }));
+      await assertSucceeds(updateDoc(doc(db, 'workAppointments', 'wa-s5'), {
+        participants: [other, { ...joined, season: 2026, seasonManual: true }],
+      }));
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-s5'), {
+        participants: [{ ...other, season: 2027 }, { ...joined, season: 2026, seasonManual: true }],
+      }));
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-s5'), {
+        participants: [other, { ...joined, season: 2026, seasonManual: true, status: 'confirmed' }],
+      }));
+    });
+
+    it('allows admins to open and start seasons but nothing else', async () => {
+      await seed('systemConfig', 'default', seasonConfig({ nextSeasonOpen: false }));
+      const db = testEnv.authenticatedContext('admin-1').firestore();
+      await assertSucceeds(updateDoc(doc(db, 'systemConfig', 'default'), { nextSeasonOpen: true, nextSeasonOpenedAt: new Date(), updatedAt: new Date() }));
+      await assertSucceeds(updateDoc(doc(db, 'systemConfig', 'default'), { currentSeason: 2027, nextSeasonOpen: false, currentSeasonStartedAt: new Date(), updatedAt: new Date() }));
+      await assertFails(updateDoc(doc(db, 'systemConfig', 'default'), { currentSeason: 2029, updatedAt: new Date() }));
+      await assertFails(updateDoc(doc(db, 'systemConfig', 'default'), { currentSeason: 2026, updatedAt: new Date() }));
+      await assertFails(updateDoc(doc(db, 'systemConfig', 'default'), { workHourThreshold: 1, updatedAt: new Date() }));
+    });
+
+    it('reserves backfill and activation for superadmins', async () => {
+      await seed('systemConfig', 'default', seasonConfig({ seasonModelActivatedAt: null, currentSeason: null }));
+      const adminDb = testEnv.authenticatedContext('admin-1').firestore();
+      await assertFails(updateDoc(doc(adminDb, 'systemConfig', 'default'), { seasonModelActivatedAt: new Date(), currentSeason: 2026, nextSeasonOpen: true }));
+      await assertFails(updateDoc(doc(adminDb, 'systemConfig', 'default'), { nextSeasonOpen: true }));
+      const superDb = testEnv.authenticatedContext('superadmin-1').firestore();
+      await assertSucceeds(updateDoc(doc(superDb, 'systemConfig', 'default'), { seasonModelActivatedAt: new Date(), currentSeason: 2026, nextSeasonOpen: true }));
+    });
+  });
+
+  describe('participant list integrity', () => {
+    it('denies appending oneself as confirmed behind other participants', async () => {
+      await seed('workAppointments', 'wa-p1', publicAppointment([other]));
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-p1'), { participants: [other, participant({ status: 'confirmed' })] }));
+    });
+
+    it('denies removing or altering other participants', async () => {
+      const mine = participant();
+      await seed('workAppointments', 'wa-p2', publicAppointment([other, mine]));
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-p2'), { participants: [mine] }));
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-p2'), { participants: [{ ...other, status: 'declined' }, mine] }));
+    });
+
+    it('allows the only participant to leave', async () => {
+      await seed('workAppointments', 'wa-p3', publicAppointment([participant()]));
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertSucceeds(updateDoc(doc(db, 'workAppointments', 'wa-p3'), { participants: [] }));
+    });
+
+    it('denies leaving after confirmation', async () => {
+      const mine = participant({ status: 'confirmed' });
+      await seed('workAppointments', 'wa-p4', publicAppointment([other, mine]));
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-p4'), { participants: [other] }));
+    });
+
+    it('denies joining a full appointment', async () => {
+      await seed('workAppointments', 'wa-p5', publicAppointment([other], { maxParticipants: 1 }));
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-p5'), { participants: [other, participant()] }));
+    });
+  });
+
+  describe('private work entries', () => {
+    it('allows admins to create their own private entry as confirmed (no further review)', async () => {
+      const db = testEnv.authenticatedContext('admin-1').firestore();
+      await assertSucceeds(setDoc(doc(db, 'workAppointments', 'wa-pr-admin'), privateAppointment(
+        { userId: 'admin-1', userName: 'Admin', status: 'confirmed', confirmedByUserId: 'admin-1', confirmedByUserName: 'Admin', confirmedAt: new Date() },
+        { createdByUserId: 'admin-1', createdByUserName: 'Admin', boatId: '' },
+      )));
+    });
+
+    it('allows admins to auto-confirm with a season once the season model is active', async () => {
+      await seed('systemConfig', 'default', seasonConfig());
+      const db = testEnv.authenticatedContext('admin-1').firestore();
+      await assertSucceeds(setDoc(doc(db, 'workAppointments', 'wa-pr-admin-season'), privateAppointment(
+        { userId: 'admin-1', userName: 'Admin', status: 'confirmed', season: 2027 },
+        { createdByUserId: 'admin-1', createdByUserName: 'Admin' },
+      )));
+    });
+
+    it('allows bootswarte to auto-confirm private entries only for their own boat', async () => {
+      const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+      const own = { userId: 'bootswart2-1', userName: 'Zweiter Bootswart', status: 'confirmed' };
+      const creator = { createdByUserId: 'bootswart2-1', createdByUserName: 'Zweiter Bootswart' };
+      await assertSucceeds(setDoc(doc(db, 'workAppointments', 'wa-pr-bw-own'), privateAppointment(own, { ...creator, boatId: 'boat-2' })));
+      await assertFails(setDoc(doc(db, 'workAppointments', 'wa-pr-bw-foreign'), privateAppointment(own, { ...creator, boatId: 'boat-1' })));
+      await assertFails(setDoc(doc(db, 'workAppointments', 'wa-pr-bw-none'), privateAppointment(own, { ...creator, boatId: '' })));
+    });
+
+    it('denies creating a self-confirmed private entry', async () => {
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertFails(setDoc(doc(db, 'workAppointments', 'wa-pr1'), privateAppointment({ status: 'confirmed' })));
+    });
+
+    it('denies turning a private entry public or reviving a declined entry', async () => {
+      await seed('workAppointments', 'wa-pr2', privateAppointment({ status: 'declined' }));
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-pr2'), { private: false }));
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-pr2'), {
+        participants: [participant({ status: 'pending', startTime: new Date('2026-10-10T09:00:00Z'), endTime: new Date('2026-10-10T11:00:00Z') })],
+      }));
+    });
+
+    it('allows deleting own unconfirmed private entries only', async () => {
+      await seed('workAppointments', 'wa-pr3', privateAppointment());
+      await seed('workAppointments', 'wa-pr4', privateAppointment({ status: 'confirmed' }));
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertSucceeds(deleteDoc(doc(db, 'workAppointments', 'wa-pr3')));
+      await assertFails(deleteDoc(doc(db, 'workAppointments', 'wa-pr4')));
+    });
+  });
+
+  describe('users', () => {
+    it('denies admins from creating user documents and allows superadmins', async () => {
+      const adminDb = testEnv.authenticatedContext('admin-1').firestore();
+      await assertFails(setDoc(doc(adminDb, 'users', 'new-1'), { email: 'x@example.com', displayName: 'X', roles: ['SUPERADMIN'] }));
+      const superDb = testEnv.authenticatedContext('superadmin-1').firestore();
+      await assertSucceeds(setDoc(doc(superDb, 'users', 'new-2'), { email: 'y@example.com', displayName: 'Y', roles: ['MEMBER'] }));
+    });
+
+    it('restricts self-registration to base fields from the login token', async () => {
+      const base = { id: 'self-1', displayName: 'Neu', onboardingState: 'not_started', createdAt: new Date(), updatedAt: new Date(), emailVerified: false };
+      const applicant = testEnv.authenticatedContext('self-1', { email: 'neu@example.com' }).firestore();
+      await assertFails(setDoc(doc(applicant, 'users', 'self-1'), { ...base, email: 'neu@example.com', roles: ['APPLICANT'], feesPaid: true }));
+      await assertFails(setDoc(doc(applicant, 'users', 'self-1'), { ...base, email: 'neu@example.com', roles: ['APPLICANT'], feesPaid: false, skipHours: true }));
+      await assertFails(setDoc(doc(applicant, 'users', 'self-1'), { ...base, email: 'anders@example.com', roles: ['APPLICANT'], feesPaid: false }));
+      await assertSucceeds(setDoc(doc(applicant, 'users', 'self-1'), { ...base, email: 'neu@example.com', roles: ['APPLICANT'], feesPaid: false }));
+
+      const domainMember = testEnv.authenticatedContext('self-2', { email: 'neu@mitglied.segelgruppe-kiel.de' }).firestore();
+      await assertSucceeds(setDoc(doc(domainMember, 'users', 'self-2'), { ...base, id: 'self-2', email: 'neu@mitglied.segelgruppe-kiel.de', roles: ['MEMBER'], feesPaid: false }));
+    });
+
+    it('limits admins to fee and exemption flags', async () => {
+      const db = testEnv.authenticatedContext('admin-1').firestore();
+      await assertSucceeds(updateDoc(doc(db, 'users', 'member-1'), { feesPaid: false, skipHours: true, updatedAt: new Date() }));
+      await assertFails(updateDoc(doc(db, 'users', 'superadmin-1'), { roles: ['MEMBER'] }));
+      await assertFails(updateDoc(doc(db, 'users', 'member-1'), { roles: ['ADMIN'] }));
+      await assertFails(deleteDoc(doc(db, 'users', 'member-1')));
+    });
+  });
+
+  describe('reservations and public feed', () => {
+    const reservation = (overrides: Record<string, unknown> = {}) => ({
+      boatId: 'boat-1',
+      userId: 'member-1',
+      userName: 'Mitglied',
+      title: 'Tour',
+      description: '',
+      startTime: new Date('2026-11-01T10:00:00Z'),
+      endTime: new Date('2026-11-01T12:00:00Z'),
+      status: 'pending',
+      visibility: 'private',
+      eligibilitySnapshot: { feesPaid: true, skipHours: false, workHoursMet: true },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    });
+
+    it('denies members from creating approved reservations on boats that require approval', async () => {
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertFails(setDoc(doc(db, 'boatReservations', 'res-1'), reservation({ status: 'approved' })));
+      await assertSucceeds(setDoc(doc(db, 'boatReservations', 'res-1b'), reservation({ status: 'pending' })));
+    });
+
+    it('allows approved reservations without approval requirement and denies blocked boats', async () => {
+      await seed('boats', 'boat-free', { name: 'Jolle', requiresApproval: false, blocked: false, color: '#000' });
+      await seed('boats', 'boat-blocked', { name: 'Kaputt', requiresApproval: false, blocked: true, color: '#000' });
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertSucceeds(setDoc(doc(db, 'boatReservations', 'res-2'), reservation({ boatId: 'boat-free', status: 'approved' })));
+      await assertFails(setDoc(doc(db, 'boatReservations', 'res-3'), reservation({ boatId: 'boat-blocked', status: 'pending' })));
+      await assertSucceeds(setDoc(doc(db, 'boatReservations', 'res-4'), reservation({ boatId: 'boat-blocked', status: 'draft' })));
+    });
+
+    it('requires paid fees for final reservations even with an hours exemption', async () => {
+      await seed('users', 'exempt-1', { email: 'e@example.com', displayName: 'Befreit', roles: ['MEMBER'], feesPaid: false, skipHours: true });
+      const db = testEnv.authenticatedContext('exempt-1').firestore();
+      await assertFails(setDoc(doc(db, 'boatReservations', 'res-5'), reservation({ userId: 'exempt-1', userName: 'Befreit' })));
+    });
+
+    it('limits bootswarte to status decisions on reservations', async () => {
+      await seed('boatReservations', 'res-6', reservation({ boatId: 'boat-2' }));
+      const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+      await assertFails(updateDoc(doc(db, 'boatReservations', 'res-6'), { title: 'Umbenannt', updatedAt: new Date() }));
+      await assertFails(updateDoc(doc(db, 'boatReservations', 'res-6'), { boatId: 'boat-1', updatedAt: new Date() }));
+      await assertSucceeds(updateDoc(doc(db, 'boatReservations', 'res-6'), { status: 'rejected', updatedAt: new Date() }));
+    });
+
+    it('accepts a matching public projection from the owner and rejects tampered ones', async () => {
+      await seed('boatReservations', 'res-7', reservation({ visibility: 'public', publicDetails: { freeSeatsText: '2 Plätze' } }));
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      const projection = {
+        id: 'res-7',
+        boatId: 'boat-1',
+        boatName: 'Laser',
+        title: 'Tour',
+        startTime: new Date('2026-11-01T10:00:00Z'),
+        endTime: new Date('2026-11-01T12:00:00Z'),
+        visibility: 'public',
+        reservationStatus: 'pending',
+        freeSeatsText: '2 Plätze',
+        updatedAt: new Date(),
+      };
+      await assertFails(setDoc(doc(db, 'publicBoatReservations', 'res-7'), { ...projection, reservationStatus: 'approved' }));
+      await assertFails(setDoc(doc(db, 'publicBoatReservations', 'res-7'), { ...projection, boatName: 'Werbung' }));
+      await assertFails(setDoc(doc(db, 'publicBoatReservations', 'res-7'), { ...projection, freeSeatsText: 'Spam' }));
+      await assertSucceeds(setDoc(doc(db, 'publicBoatReservations', 'res-7'), projection));
+    });
+  });
+
+  describe('boats and work appointments for bootswarte', () => {
+    it('denies bootswarte from changing the boat assignment', async () => {
+      const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+      await assertFails(updateDoc(doc(db, 'boats', 'boat-2'), { bootswart2: 'member-1' }));
+      await assertFails(updateDoc(doc(db, 'boats', 'boat-2'), { name: 'Neu' }));
+      await assertSucceeds(updateDoc(doc(db, 'boats', 'boat-2'), { blocked: true, updatedAt: new Date() }));
+    });
+
+    it('denies bootswarte from moving appointments to foreign boats or no boat', async () => {
+      await seed('workAppointments', 'wa-b1', publicAppointment([], { boatId: 'boat-2' }));
+      const db = testEnv.authenticatedContext('bootswart2-1').firestore();
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-b1'), { boatId: 'boat-1' }));
+      await assertFails(updateDoc(doc(db, 'workAppointments', 'wa-b1'), { boatId: '' }));
+      await assertSucceeds(updateDoc(doc(db, 'workAppointments', 'wa-b1'), { title: 'Neu', boatId: 'boat-2' }));
+    });
+  });
+
+  describe('activity log', () => {
+    const entry = (overrides: Record<string, unknown> = {}) => ({
+      type: 'workHour.updated',
+      entityId: 'wa-1',
+      entityType: 'workHour',
+      actorId: 'member-1',
+      actorName: 'Mitglied',
+      timestamp: new Date(),
+      details: {},
+      ...overrides,
+    });
+
+    it('binds entries to the signed-in user and the current time', async () => {
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertSucceeds(setDoc(doc(db, 'activityLog', 'log-1'), entry()));
+      await assertFails(setDoc(doc(db, 'activityLog', 'log-2'), entry({ actorId: 'admin-1' })));
+      await assertFails(setDoc(doc(db, 'activityLog', 'log-3'), entry({ timestamp: new Date('2020-01-01T00:00:00Z') })));
+      await assertFails(setDoc(doc(db, 'activityLog', 'log-4'), entry({ extra: true })));
+    });
+
+    it('allows system entries for season actions', async () => {
+      const db = testEnv.authenticatedContext('admin-1').firestore();
+      await assertSucceeds(setDoc(doc(db, 'activityLog', 'log-5'), entry({ type: 'season.started', entityType: 'system', entityId: 'systemConfig/default', actorId: 'admin-1', actorName: 'Admin' })));
+    });
+
+    it('denies members from reading the log', async () => {
+      await seed('activityLog', 'log-6', entry());
+      const db = testEnv.authenticatedContext('member-1').firestore();
+      await assertFails(getDoc(doc(db, 'activityLog', 'log-6')));
+    });
   });
 });

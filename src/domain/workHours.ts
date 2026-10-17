@@ -1,4 +1,7 @@
 import { SystemConfig, User, WorkAppointment, WorkParticipant } from '../types/models';
+import { getAccountingYearStart, getCurrentSeason, getLegacySeason, resolveEntrySeason } from './seasons';
+
+export { getAccountingYearStart } from './seasons';
 
 export interface WorkHourEntry {
   appointmentId: string;
@@ -10,7 +13,8 @@ export interface WorkHourEntry {
   startTime: Date;
   endTime: Date;
   minutes: number;
-  accountingYear: number;
+  season: number;
+  seasonManual: boolean;
   isPrivate: boolean;
 }
 
@@ -25,6 +29,7 @@ export interface WorkHourSummary {
 
 export interface UserWorkHoursSnapshot {
   user: User;
+  season: number;
   entries: WorkHourEntry[];
   completedEntries: WorkHourEntry[];
   pendingEntries: WorkHourEntry[];
@@ -33,31 +38,18 @@ export interface UserWorkHoursSnapshot {
 }
 
 export interface WorkHourCalculationResult {
-  accountingYear: number;
-  accountingPeriodStart: Date;
-  accountingPeriodEnd: Date;
+  season: number;
   users: UserWorkHoursSnapshot[];
 }
 
 const MINUTES_PER_HOUR = 60;
 const MS_PER_MINUTE = 60 * 1000;
 
-export function getAccountingYearStart(config: SystemConfig, referenceDate: Date): Date {
-  const configuredMonth = config.yearChangeDate.getMonth();
-  const configuredDay = config.yearChangeDate.getDate();
-  const currentYearStart = new Date(referenceDate.getFullYear(), configuredMonth, configuredDay, 0, 0, 0, 0);
-
-  if (referenceDate.getTime() >= currentYearStart.getTime()) {
-    return currentYearStart;
-  }
-
-  return new Date(referenceDate.getFullYear() - 1, configuredMonth, configuredDay, 0, 0, 0, 0);
-}
-
 export function getNextAccountingYearStart(config: SystemConfig, accountingYearStart: Date): Date {
   return new Date(accountingYearStart.getFullYear() + 1, accountingYearStart.getMonth(), accountingYearStart.getDate(), 0, 0, 0, 0);
 }
 
+/** @deprecated Nur noch für Alt-Einträge relevant – siehe `getLegacySeason`. */
 export function getAccountingYear(config: SystemConfig, referenceDate: Date): number {
   return getAccountingYearStart(config, referenceDate).getFullYear();
 }
@@ -104,6 +96,7 @@ export function mapAppointmentToWorkEntries(
     .map((participant) => {
       const { startTime, endTime } = resolveParticipantWindow(appointment, participant);
       const minutes = calculateDurationMinutes(startTime, endTime);
+      const season = resolveEntrySeason(appointment, participant, config);
 
       return {
         appointmentId: appointment.id,
@@ -115,7 +108,8 @@ export function mapAppointmentToWorkEntries(
         startTime,
         endTime,
         minutes,
-        accountingYear: getAccountingYear(config, endTime),
+        season,
+        seasonManual: participant.seasonManual === true && season === participant.season,
         isPrivate: appointment.private === true,
       };
     })
@@ -127,11 +121,11 @@ export function calculateUserWorkHourSnapshot(
   appointments: WorkAppointment[],
   config: SystemConfig,
   now: Date = new Date(),
+  season: number = getCurrentSeason(config, now),
 ): UserWorkHoursSnapshot {
-  const accountingYear = getAccountingYear(config, now);
   const allEntries = appointments
     .flatMap((appointment) => mapAppointmentToWorkEntries(appointment, config, new Set([user.id])))
-    .filter((entry) => entry.accountingYear === accountingYear)
+    .filter((entry) => entry.season === season)
     .sort((left, right) => right.startTime.getTime() - left.startTime.getTime());
 
   const completedEntries = allEntries.filter((entry) => classifyWorkEntry(entry, now) === 'completed');
@@ -157,6 +151,7 @@ export function calculateUserWorkHourSnapshot(
 
   return {
     user,
+    season,
     entries: allEntries,
     completedEntries,
     pendingEntries,
@@ -172,19 +167,34 @@ export function calculateUserWorkHourSnapshot(
   };
 }
 
+/**
+ * Ob die Pflichtstunden der angegebenen Saison durch bestätigte und ausstehende Einträge bereits abgedeckt sind.
+ * Grundlage für die Standard-Saison neuer Einträge in der Überlappungsphase.
+ */
+export function isSeasonRequirementCovered(
+  user: User,
+  appointments: WorkAppointment[],
+  config: SystemConfig,
+  season: number,
+  now: Date = new Date(),
+): boolean {
+  if (user.skipHours) {
+    return true;
+  }
+  return calculateUserWorkHourSnapshot(user, appointments, config, now, season).summary.remainingMinutes === 0;
+}
+
 export function calculateWorkHoursForUsers(
   users: User[],
   appointments: WorkAppointment[],
   config: SystemConfig,
   now: Date = new Date(),
+  season: number = getCurrentSeason(config, now),
 ): WorkHourCalculationResult {
-  const accountingPeriodStart = getAccountingYearStart(config, now);
-  const accountingPeriodEnd = getNextAccountingYearStart(config, accountingPeriodStart);
-
   return {
-    accountingYear: accountingPeriodStart.getFullYear(),
-    accountingPeriodStart,
-    accountingPeriodEnd,
-    users: users.map((user) => calculateUserWorkHourSnapshot(user, appointments, config, now)),
+    season,
+    users: users.map((user) => calculateUserWorkHourSnapshot(user, appointments, config, now, season)),
   };
 }
+
+export { getLegacySeason };

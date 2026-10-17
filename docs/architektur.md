@@ -18,6 +18,10 @@ Die Anwendung besteht aus einem React-Frontend mit TypeScript und Firebase als B
   - Reservierungsdialoge, Kalender, Detailansichten
 - `src/domain/workHours.ts`
   - zentrale, reine Arbeitsstundenlogik
+- `src/domain/seasons.ts`
+  - Saisonmodell: Zuordnung von Einträgen zu Saisons, Altmodus über `yearChangeDate`, Standard-Saison, Backfill-Planung
+- `src/components/Admin/SeasonControl.tsx`
+  - Saisonsteuerung (Backfill, Aktivierung, Saisonwechsel)
 - `src/domain/reservations.ts`
   - Konfliktprüfung, Statusmodell und öffentlicher Feed
 
@@ -31,5 +35,6 @@ Die Anwendung besteht aus einem React-Frontend mit TypeScript und Firebase als B
 ## Architekturentscheidungen
 
 - Arbeitsstundenberechnung ist aus den Komponenten herausgezogen und in pure Funktionen zentralisiert.
+- Arbeitsstunden zählen pro Saison (explizit am Teilnehmereintrag gespeichert); der Saisonwechsel ist eine bewusste Admin-Aktion statt eines festen Stichtags.
 - Öffentliche Reservierungen werden nicht aus der internen Haupt-Collection veröffentlicht, sondern als minimierte Projektion gespeichert.
 - Unverbindliche Reservierungen werden als Status `draft` modelliert und nur warnend behandelt.

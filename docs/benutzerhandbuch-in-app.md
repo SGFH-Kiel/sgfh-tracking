@@ -13,6 +13,7 @@ Die geführte Kurzanleitung ist in `src/components/Onboarding/UserGuide.tsx` imp
 
 - Navigation und Aufbau der Anwendung
 - Erfassen privater Arbeitsstunden
+- Saisons (nur bei aktivem Saisonmodell): Zuordnung jedes Eintrags zu einer Saison, Überlappungsphase und Vorschlag der Standard-Saison
 - Statuslogik für ausstehende und bestätigte Arbeitsstunden
 - finale Reservierungen und unverbindliche Vormerkungen
 - öffentliche Reservierungen mit freien Plätzen

@@ -39,9 +39,10 @@ import { Handyman } from '@mui/icons-material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { UserGuide } from './Onboarding/UserGuide';
 import { UserPreferencesDialog } from './UserPreferencesDialog';
+import { isSeasonModelActive } from '../domain/seasons';
 
 export const Layout: React.FC = () => {
-  const { isAdmin, isSuperAdmin, signOut, currentUser } = useApp();
+  const { isAdmin, isSuperAdmin, signOut, currentUser, systemConfig } = useApp();
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(Boolean(currentUser && (!currentUser.onboardingState || currentUser.onboardingState === 'not_started')));
@@ -68,8 +69,9 @@ export const Layout: React.FC = () => {
       { text: 'Mitgliederverwaltung', icon: <GroupIcon />, path: '/members' },
       { text: 'Aktivitätsverfolgung', icon: <TrackChangesIcon />, path: '/tracking' },
     ] : []),
-    ...(isSuperAdmin ? [
-      { text: 'Systemeinstellungen', icon: <SettingsIcon />, path: '/settings' },
+    // Admins erhalten nach Aktivierung des Saisonmodells Zugriff auf die Saisonsteuerung.
+    ...(isSuperAdmin || (isAdmin && isSeasonModelActive(systemConfig)) ? [
+      { text: isSuperAdmin ? 'Systemeinstellungen' : 'Saisonsteuerung', icon: <SettingsIcon />, path: '/settings' },
     ] : []),
   ];
 
@@ -261,7 +263,7 @@ export const Layout: React.FC = () => {
                 <Route path="/tracking" element={<ActivityTrackingView />} />
               </>
             )}
-            {isSuperAdmin && (
+            {(isSuperAdmin || (isAdmin && isSeasonModelActive(systemConfig))) && (
               <Route path="/settings" element={<SystemConfig />} />
             )}
           </Routes>

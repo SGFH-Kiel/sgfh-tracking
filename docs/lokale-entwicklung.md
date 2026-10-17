@@ -6,6 +6,7 @@ Für die lokale Entwicklung und das manuelle Testen aller Features kann die Anwe
 
 - Node.js 18+
 - Firebase CLI (`npm install -g firebase-tools`)
+- Java 11+ (besser 21) für den Firestore-Emulator; ist nur Java 8 installiert, kann z. B. das JDK aus Android Studio über `JAVA_HOME` verwendet werden
 - Abhängigkeiten installiert (`npm install`)
 
 ## Schnellstart
@@ -57,8 +58,13 @@ Die Seed-Daten in `scripts/seed-emulator.mjs` erzeugen folgende Ausgangssituatio
 
 **Arbeitstermine:**
 - `wa-past-1` — Bootsputztag vor 30 Tagen, mit bestätigten Teilnehmern
+- `wa-past-0` — privater Einsatz vor 75 Tagen (5 h, bestätigt)
 - `wa-past-2` — Segelreparatur vor 10 Tagen, ausstehende Teilnahme
 - `wa-future-1` — Slip-Arbeit in 14 Tagen, offen
+
+**Systemkonfiguration (`systemConfig/default`):**
+- Stichtag `yearChangeDate` = 01.10. (wie im Produktivsystem), Pflichtstunden 8
+- Saisonmodell **nicht** aktiviert. So lassen sich Backfill und Aktivierung lokal durchspielen. Je nach Datum liegen die Arbeitstermine dabei auf beiden Seiten des Stichtags.
 
 ## Nur Test-Daten neu einpflegen
 

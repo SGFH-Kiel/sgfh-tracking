@@ -64,11 +64,20 @@ Wichtige Felder:
 - `endTime`
 - `boatId`
 - `participants[]`
+  - `season` – Saison (Jahreszahl), für die der Eintrag zählt; fehlt bei Alt-Einträgen vor dem Backfill
+  - `seasonManual` – `true`, wenn das Mitglied bewusst von der vorgeschlagenen Saison abgewichen ist
 - `supplies[]`
 - `private`
 
 ## `systemConfig/default`
 
-- `yearChangeDate`
-- `workHourThreshold`
+- `yearChangeDate` – Stichtag (nur Tag/Monat). Vor Aktivierung des Saisonmodells Grundlage aller Berechnungen, danach nur Fallback für Einträge ohne `season`
+- `workHourThreshold` – Pflichtstunden pro Saison
+- `calendarDefaults`
 - `featureFlags`
+- Saisonmodell (alle optional, siehe `docs/arbeitsstunden-logik.md`):
+  - `currentSeason` – aktuelle Saison (zählt für die Reservierungsberechtigung)
+  - `nextSeasonOpen` – Buchung für `currentSeason + 1` geöffnet
+  - `nextSeasonOpenedAt`, `currentSeasonStartedAt` – Zeitpunkte der letzten Saisonaktionen
+  - `seasonBackfillAt` – letzter Backfill der Saisonzuordnung
+  - `seasonModelActivatedAt` – Aktivierung des Saisonmodells; ohne diesen Wert gilt ausschließlich `yearChangeDate`

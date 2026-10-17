@@ -24,7 +24,7 @@ Nur Reservierungen mit Status `pending` oder `approved` werden in den öffentlic
 
 Mitglieder können auch ohne finale Berechtigung eine `draft`-Reservierung anlegen.
 Diese ist für Planung gedacht und blockiert nicht hart.
-Sobald die Voraussetzungen erfüllt sind (`feesPaid` oder `skipHours`), kann die Vormerkung über „Finalisieren" in den Status `pending` oder `approved` überführt werden.
+Sobald die Voraussetzungen erfüllt sind (Beitrag bezahlt **und** Arbeitsstunden der aktuellen Saison erfüllt oder `skipHours`), kann die Vormerkung über „Finalisieren" in den Status `pending` oder `approved` überführt werden.
 
 ## Gesperrte Boote
 
@@ -60,3 +60,11 @@ Admins können jede Reservierung unabhängig vom Status löschen.
 - `publicDetails` wird bewusst **nicht** kopiert
 - Die Kopien erhalten die Identität (`userId`, `userName`) und den aktuellen Berechtigungsstatus (`eligibilitySnapshot`) des **ausführenden Benutzers**, nicht des ursprünglichen Besitzers
 - Nach Erstellung müssen die Kopien bei Bedarf individuell über „Finalisieren" in einen finalen Status überführt werden
+
+## Serverseitige Prüfungen (Firestore-Regeln)
+
+- Finale Reservierungen (`pending`/`approved`) setzen `feesPaid == true` voraus. Die Arbeitsstunden-Prüfung ist rein clientseitig, weil Regeln keine Summen berechnen können. Sie wird im `eligibilitySnapshot` dokumentiert.
+- Gesperrte Boote (`blocked`) können nur vorgemerkt (`draft`), nicht final reserviert werden.
+- `approved` direkt beim Anlegen oder Finalisieren gibt es nur bei Booten ohne Genehmigungspflicht oder für den Bootswart (bzw. zweiten Bootswart) des Boots.
+- Bootswarte ändern bei fremden Reservierungen ausschließlich den Status (`approved`, `rejected`, `cancelled`).
+- Der öffentliche Feed (`publicBoatReservations`) muss exakt zur verknüpften Reservierung passen (Boot, Bootsname, Titel, Zeiten, Status, Freitext).

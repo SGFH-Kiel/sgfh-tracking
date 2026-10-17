@@ -47,7 +47,11 @@ const ENTITY_TYPE_LABELS: Record<ActivityEntityType, string> = {
   workHour: 'Arbeitsstunden',
   boat: 'Boot',
   member: 'Mitglied',
+  system: 'System',
 };
+
+// Der Bereich „Aktueller Stand“ listet nur fachliche Entitäten; Systemereignisse erscheinen nur im Log.
+const CURRENT_STATE_ENTITY_TYPES: ActivityEntityType[] = ['reservation', 'workHour', 'boat', 'member'];
 
 const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
   'reservation.created': 'Reservierung erstellt',
@@ -63,6 +67,10 @@ const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
   'member.updated': 'Mitglied bearbeitet',
   'member.deactivated': 'Mitglied deaktiviert',
   'member.deleted': 'Mitglied gelöscht',
+  'season.backfill': 'Saison-Backfill ausgeführt',
+  'season.activated': 'Saisonmodell aktiviert',
+  'season.next_opened': 'Buchung nächste Saison geöffnet',
+  'season.started': 'Neue Saison gestartet',
 };
 
 const RESERVATION_STATUS_LABELS: Record<ReservationStatus, string> = {
@@ -95,6 +103,10 @@ const ALL_ACTIVITY_TYPES: ActivityType[] = [
   'member.updated',
   'member.deactivated',
   'member.deleted',
+  'season.backfill',
+  'season.activated',
+  'season.next_opened',
+  'season.started',
 ];
 
 interface TabPanelProps {
@@ -287,8 +299,8 @@ export const ActivityTrackingView: React.FC = () => {
               onChange={(e) => setEntityTypeFilter(e.target.value as EntityTypeFilter)}
             >
               <MenuItem value="all">Alle</MenuItem>
-              {(Object.entries(ENTITY_TYPE_LABELS) as [ActivityEntityType, string][]).map(([key, label]) => (
-                <MenuItem key={key} value={key}>{label}</MenuItem>
+              {CURRENT_STATE_ENTITY_TYPES.map((key) => (
+                <MenuItem key={key} value={key}>{ENTITY_TYPE_LABELS[key]}</MenuItem>
               ))}
             </Select>
           </FormControl>

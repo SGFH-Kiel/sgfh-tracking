@@ -25,10 +25,14 @@ service cloud.firestore {
       return isMember() && currentUserDoc().roles.hasAny(['SUPERADMIN', 'ADMIN']);
     }
 
+    function boatDoc(boatId) {
+      return get(/databases/$(database)/documents/boats/$(boatId)).data;
+    }
+
     function isBootswart(boatId) {
       return isMember() && boatId != null && boatId != '' && (
-        get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart == request.auth.uid ||
-        ('bootswart2' in get(/databases/$(database)/documents/boats/$(boatId)).data && get(/databases/$(database)/documents/boats/$(boatId)).data.bootswart2 == request.auth.uid)
+        boatDoc(boatId).bootswart == request.auth.uid ||
+        ('bootswart2' in boatDoc(boatId) && boatDoc(boatId).bootswart2 == request.auth.uid)
       );
     }
 
@@ -40,6 +44,46 @@ service cloud.firestore {
     function hasTimestampRange(data) {
       return data.startTime is timestamp && data.endTime is timestamp && data.endTime > data.startTime;
     }
+
+    // ---------------------------------------------------------------------------
+    // Saisonmodell (siehe docs/arbeitsstunden-logik.md)
+    // ---------------------------------------------------------------------------
+
+    function seasonConfig() {
+      return get(/databases/$(database)/documents/systemConfig/default).data;
+    }
+
+    function seasonModelActive() {
+      return exists(/databases/$(database)/documents/systemConfig/default) &&
+        seasonConfig().get('seasonModelActivatedAt', null) != null &&
+        seasonConfig().get('currentSeason', null) is int;
+    }
+
+    // Saisons, auf die Mitglieder selbst buchen dürfen: aktuelle Saison und – in der Überlappungsphase – die nächste.
+    function isBookableSeason(season) {
+      return seasonModelActive() && season is int && (
+        season == seasonConfig().currentSeason ||
+        (seasonConfig().get('nextSeasonOpen', false) == true && season == seasonConfig().currentSeason + 1)
+      );
+    }
+
+    // Saisonfelder eines neu angelegten Teilnehmereintrags (durch das Mitglied selbst).
+    // Vor Aktivierung des Saisonmodells werden keine Saisonfelder geschrieben.
+    function memberNewSeasonFieldsValid(p) {
+      return seasonModelActive()
+        ? isBookableSeason(p.get('season', null)) && (!('seasonManual' in p) || p.seasonManual == true)
+        : !('season' in p) && !('seasonManual' in p);
+    }
+
+    // Saisonfelder eines vom Mitglied geänderten Teilnehmereintrags: unverändert oder neu gültig gewählt.
+    function memberChangedSeasonFieldsValid(p, prev) {
+      return (p.get('season', null) == prev.get('season', null) && p.get('seasonManual', null) == prev.get('seasonManual', null)) ||
+        (isBookableSeason(p.get('season', null)) && (!('seasonManual' in p) || p.seasonManual == true));
+    }
+
+    // ---------------------------------------------------------------------------
+    // Reservierungen
+    // ---------------------------------------------------------------------------
 
     function hasValidReservationStatus(status) {
       return ['draft', 'pending', 'approved', 'rejected', 'cancelled'].hasAny([status]);
@@ -72,6 +116,21 @@ service cloud.firestore {
         request.resource.data.eligibilitySnapshot.workHoursMet is bool;
     }
 
+    // Finale Reservierungen setzen einen bezahlten Beitrag voraus. Die Arbeitsstunden werden clientseitig geprüft
+    // (in Regeln nicht berechenbar) und im eligibilitySnapshot dokumentiert.
+    function mayFinalizeReservation() {
+      return currentUserDoc().feesPaid == true;
+    }
+
+    // Status für eine finale Reservierung eines Mitglieds: gesperrte Boote sind ausgeschlossen,
+    // 'approved' nur ohne Genehmigungspflicht oder als Bootswart des Boots.
+    function memberFinalStatusAllowed(boatId, status) {
+      return boatDoc(boatId).get('blocked', false) != true && (
+        status == 'pending' ||
+        (status == 'approved' && (boatDoc(boatId).get('requiresApproval', false) != true || isBootswart(boatId)))
+      );
+    }
+
     function reservationIdentityUnchanged() {
       return request.resource.data.userId == resource.data.userId &&
         request.resource.data.userName == resource.data.userName &&
@@ -79,26 +138,34 @@ service cloud.firestore {
     }
 
     function ownerCanEditReservation() {
-      return resource.data.userId == request.auth.uid &&
+      return isMember() &&
+        resource.data.userId == request.auth.uid &&
         reservationIdentityUnchanged() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'startTime', 'endTime', 'visibility', 'publicDetails', 'status', 'updatedAt']) &&
         (
           // Owner can edit draft reservation fields (status stays draft)
           (resource.data.status == 'draft' && request.resource.data.status == 'draft') ||
-          // Owner can finalize draft → pending if eligible
+          // Owner can finalize draft → pending/approved if eligible (approved only without approval requirement)
           (resource.data.status == 'draft' &&
-            request.resource.data.status == 'pending' &&
-            (currentUserDoc().feesPaid == true || currentUserDoc().skipHours == true)) ||
-          // Owner can finalize draft → approved only if boat does not require approval
-          (resource.data.status == 'draft' &&
-            request.resource.data.status == 'approved' &&
-            (currentUserDoc().feesPaid == true || currentUserDoc().skipHours == true) &&
-            !get(/databases/$(database)/documents/boats/$(resource.data.boatId)).data.requiresApproval) ||
+            mayFinalizeReservation() &&
+            memberFinalStatusAllowed(resource.data.boatId, request.resource.data.status)) ||
           // Owner can cancel from any active status
           (resource.data.status in ['draft', 'pending', 'approved'] &&
             request.resource.data.status == 'cancelled')
         );
     }
+
+    // Bootswarte entscheiden nur über den Status von Reservierungen ihres Boots.
+    function bootswartCanUpdateReservation() {
+      return isBootswart(resource.data.boatId) &&
+        reservationIdentityUnchanged() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+        request.resource.data.status in ['approved', 'rejected', 'cancelled'];
+    }
+
+    // ---------------------------------------------------------------------------
+    // Arbeitstermine
+    // ---------------------------------------------------------------------------
 
     function validWorkAppointment(data) {
       return data.title is string &&
@@ -107,6 +174,98 @@ service cloud.firestore {
         data.supplies is list &&
         hasTimestampRange(data);
     }
+
+    function hasNoConfirmationMetadata(p) {
+      return !('confirmedByUserId' in p) && !('confirmedByUserName' in p) && !('confirmedAt' in p);
+    }
+
+    function addedParticipants() {
+      return request.resource.data.participants.removeAll(resource.data.participants);
+    }
+
+    function removedParticipants() {
+      return resource.data.participants.removeAll(request.resource.data.participants);
+    }
+
+    function onlyParticipantsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']) &&
+        request.resource.data.participants is list;
+    }
+
+    // Mitglied trägt sich selbst als 'pending' in einen öffentlichen Termin ein.
+    function isSelfJoin() {
+      return onlyParticipantsChanged() &&
+        request.resource.data.participants.size() == resource.data.participants.size() + 1 &&
+        removedParticipants().size() == 0 &&
+        addedParticipants().size() == 1 &&
+        addedParticipants()[0].userId == request.auth.uid &&
+        addedParticipants()[0].status == 'pending' &&
+        addedParticipants()[0].keys().hasOnly(['userId', 'userName', 'status', 'createdAt', 'updatedAt', 'startTime', 'endTime', 'season', 'seasonManual']) &&
+        memberNewSeasonFieldsValid(addedParticipants()[0]) &&
+        (resource.data.get('maxParticipants', null) == null ||
+          request.resource.data.participants.size() <= resource.data.maxParticipants);
+    }
+
+    // Mitglied trägt sich wieder aus, solange der eigene Eintrag nicht bestätigt ist.
+    function isSelfLeave() {
+      return onlyParticipantsChanged() &&
+        request.resource.data.participants.size() == resource.data.participants.size() - 1 &&
+        addedParticipants().size() == 0 &&
+        removedParticipants().size() == 1 &&
+        removedParticipants()[0].userId == request.auth.uid &&
+        removedParticipants()[0].status != 'confirmed';
+    }
+
+    // Mitglied ändert Zeiten oder Saison des eigenen, noch nicht bestätigten Eintrags.
+    function isSelfParticipantEdit() {
+      return onlyParticipantsChanged() &&
+        request.resource.data.participants.size() == resource.data.participants.size() &&
+        addedParticipants().size() == 1 &&
+        removedParticipants().size() == 1 &&
+        addedParticipants()[0].userId == request.auth.uid &&
+        removedParticipants()[0].userId == request.auth.uid &&
+        removedParticipants()[0].status != 'confirmed' &&
+        addedParticipants()[0].diff(removedParticipants()[0]).affectedKeys().hasOnly(['startTime', 'endTime', 'season', 'seasonManual', 'updatedAt']) &&
+        memberChangedSeasonFieldsValid(addedParticipants()[0], removedParticipants()[0]);
+    }
+
+    function isOwnPrivateCreate() {
+      return isMember() &&
+        request.resource.data.private == true &&
+        request.resource.data.get('createdByUserId', request.auth.uid) == request.auth.uid &&
+        request.resource.data.participants.size() == 1 &&
+        request.resource.data.participants[0].userId == request.auth.uid &&
+        request.resource.data.participants[0].status == 'pending' &&
+        hasNoConfirmationMetadata(request.resource.data.participants[0]) &&
+        memberNewSeasonFieldsValid(request.resource.data.participants[0]);
+    }
+
+    // Ersteller bearbeitet den eigenen privaten Eintrag, solange er nicht bestätigt ist.
+    // Status, Ersteller und Privat-Kennzeichen bleiben unverändert.
+    function isOwnPrivateEdit() {
+      return isMember() &&
+        resource.data.get('private', false) == true &&
+        request.resource.data.get('private', false) == true &&
+        request.resource.data.get('createdByUserId', null) == resource.data.get('createdByUserId', null) &&
+        resource.data.participants.size() == 1 &&
+        resource.data.participants[0].userId == request.auth.uid &&
+        resource.data.participants[0].status != 'confirmed' &&
+        request.resource.data.participants.size() == 1 &&
+        request.resource.data.participants[0].userId == request.auth.uid &&
+        request.resource.data.participants[0].status == resource.data.participants[0].status &&
+        hasNoConfirmationMetadata(request.resource.data.participants[0]) &&
+        memberChangedSeasonFieldsValid(request.resource.data.participants[0], resource.data.participants[0]);
+    }
+
+    // Bootswarte dürfen Termine nur innerhalb ihrer eigenen Boote verschieben.
+    function bootswartKeepsOwnBoat() {
+      return request.resource.data.get('boatId', '') == resource.data.get('boatId', '') ||
+        isBootswart(request.resource.data.get('boatId', ''));
+    }
+
+    // ---------------------------------------------------------------------------
+    // Öffentlicher Reservierungsfeed
+    // ---------------------------------------------------------------------------
 
     function linkedReservation(reservationId) {
       return get(/databases/$(database)/documents/boatReservations/$(reservationId)).data;
@@ -123,43 +282,62 @@ service cloud.firestore {
     }
 
     function validPublicReservationProjection(reservationId) {
-      return request.resource.data.keys().hasOnly(['boatId', 'boatName', 'title', 'startTime', 'endTime', 'visibility', 'reservationStatus', 'freeSeatsText', 'updatedAt']) &&
+      return request.resource.data.keys().hasOnly(['id', 'boatId', 'boatName', 'title', 'startTime', 'endTime', 'visibility', 'reservationStatus', 'freeSeatsText', 'updatedAt']) &&
+        (!('id' in request.resource.data) || request.resource.data.id == reservationId) &&
         linkedReservation(reservationId) != null &&
         linkedReservation(reservationId).boatId == request.resource.data.boatId &&
+        boatDoc(request.resource.data.boatId).name == request.resource.data.boatName &&
         linkedReservation(reservationId).title == request.resource.data.title &&
         linkedReservation(reservationId).startTime == request.resource.data.startTime &&
         linkedReservation(reservationId).endTime == request.resource.data.endTime &&
+        linkedReservation(reservationId).status == request.resource.data.reservationStatus &&
+        (!('freeSeatsText' in request.resource.data) ||
+          linkedReservation(reservationId).get('publicDetails', {}).get('freeSeatsText', null) == request.resource.data.freeSeatsText) &&
         linkedReservation(reservationId).visibility == 'public' &&
         !['draft', 'rejected', 'cancelled'].hasAny([linkedReservation(reservationId).status]);
     }
+
+    // ---------------------------------------------------------------------------
+    // Collections
+    // ---------------------------------------------------------------------------
 
     match /users/{userId} {
       allow read: if (request.auth != null && request.auth.uid == userId) || isMember();
       allow list: if isMember();
 
-      allow create: if isAdmin() ||
-        (request.auth.uid == userId && (
-          (isAllowedDomain() && request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) && request.resource.data.roles.hasOnly(['MEMBER']) &&
-            (request.resource.data.email.matches('.*@mitglied\\.segelgruppe-kiel\\.de$') || request.resource.data.email.matches('.*@segelgruppe-kiel\\.de$'))) ||
-          (request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) && request.resource.data.roles.hasOnly(['APPLICANT']))
-        ));
+      // Selbstregistrierung: nur Basisfelder, kein bezahlter Beitrag/keine Befreiung, E-Mail aus dem Login-Token.
+      // Mitgliedsverwaltung (Anlegen fremder Konten) ist Superadmins vorbehalten.
+      allow create: if isSuperAdmin() ||
+        (request.auth != null && request.auth.uid == userId &&
+          request.resource.data.keys().hasOnly(['id', 'email', 'displayName', 'roles', 'feesPaid', 'onboardingState', 'createdAt', 'updatedAt', 'emailVerified']) &&
+          request.resource.data.keys().hasAll(['email', 'displayName', 'roles']) &&
+          request.resource.data.email == request.auth.token.email &&
+          request.resource.data.get('feesPaid', false) == false &&
+          (
+            (isAllowedDomain() && request.resource.data.roles.hasOnly(['MEMBER']) &&
+              (request.resource.data.email.matches('.*@mitglied\\.segelgruppe-kiel\\.de$') || request.resource.data.email.matches('.*@segelgruppe-kiel\\.de$'))) ||
+            request.resource.data.roles.hasOnly(['APPLICANT'])
+          ));
 
       allow update: if
-        (request.auth.uid == userId &&
+        (request.auth != null && request.auth.uid == userId &&
           request.resource.data.email == resource.data.email &&
           request.resource.data.roles == resource.data.roles &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'lastLoginAt', 'onboardingState', 'preferences', 'updatedAt']) &&
           (!('onboardingState' in request.resource.data) || ['not_started', 'skipped', 'completed'].hasAny([request.resource.data.onboardingState]))) ||
-        (isAdmin() && (!request.resource.data.roles.hasAny(['SUPERADMIN']) || (resource.data.roles.hasAny(['SUPERADMIN']) && request.resource.data.roles.hasAny(['SUPERADMIN'])))) ||
+        // Admins dürfen nur Beitrags- und Befreiungsstatus pflegen; Rollen, E-Mail und Deaktivierung sind Superadmins vorbehalten.
+        (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feesPaid', 'skipHours', 'updatedAt'])) ||
         isSuperAdmin();
 
-      allow delete: if isAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     match /boats/{boatId} {
       allow read: if isMember();
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() || isBootswart(boatId);
+      // Bootswarte dürfen Zustand und Beschreibung pflegen, aber weder Name noch Bootswart-Zuordnung ändern.
+      allow update: if isAdmin() ||
+        (isBootswart(boatId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['description', 'color', 'blocked', 'requiresApproval', 'updatedAt']));
     }
 
     match /boatReservations/{reservationId} {
@@ -168,11 +346,10 @@ service cloud.firestore {
         (
           isAdmin() ||
           request.resource.data.status == 'draft' ||
-          currentUserDoc().feesPaid == true ||
-          currentUserDoc().skipHours == true
+          (mayFinalizeReservation() && memberFinalStatusAllowed(request.resource.data.boatId, request.resource.data.status))
         );
 
-      allow update: if isAdmin() || isBootswart(resource.data.boatId) || ownerCanEditReservation();
+      allow update: if isAdmin() || bootswartCanUpdateReservation() || ownerCanEditReservation();
 
       allow delete: if isAdmin() || (isMember() && resource.data.userId == request.auth.uid && resource.data.status == 'draft');
     }
@@ -183,57 +360,52 @@ service cloud.firestore {
       allow delete: if isAdmin() || canManageLinkedPublicReservation(reservationId);
     }
 
-    match /workHours/{docId} {
-      allow read: if isMember();
-      allow create: if isMember() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update, delete: if isMember() && (resource.data.userId == request.auth.uid || isAdmin());
-    }
-
     match /workAppointments/{appointmentId} {
       allow read: if isMember();
 
-      allow create: if (isAdmin() || isBootswart(request.resource.data.boatId) ||
-        (
-          isMember() &&
-          request.resource.data.private == true &&
-          request.resource.data.participants.size() == 1 &&
-          request.resource.data.participants[0].userId == request.auth.uid
-        )) && validWorkAppointment(request.resource.data);
+      allow create: if (isAdmin() || isBootswart(request.resource.data.get('boatId', '')) || isOwnPrivateCreate()) &&
+        validWorkAppointment(request.resource.data);
 
-      allow update: if isAdmin() || ('boatId' in resource.data && isBootswart(resource.data.boatId)) ||
-        // Member can join (add self as pending) or leave (remove self) on non-private appointments.
-        // Only the participants field changes. Status of any existing entry must not change.
-        // Since Firestore rules cannot iterate lists, we only enforce the no-status-change constraint
-        // on participant[0]. This is sufficient because private appointments are handled by the
-        // branch below, and join/leave via arrayUnion/arrayRemove never mutate existing entries.
+      allow update: if isAdmin() ||
+        ('boatId' in resource.data && isBootswart(resource.data.boatId) && bootswartKeepsOwnBoat()) ||
+        // Mitglieder: nur der eigene Eintrag in öffentlichen Terminen (eintragen, austragen, Zeit/Saison anpassen)
         (isMember() &&
-          !('private' in resource.data && resource.data.private == true) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']) &&
-          request.resource.data.participants is list &&
-          (resource.data.participants.size() == 0 ||
-            resource.data.participants[0].status == request.resource.data.participants[0].status)) ||
-        // Member can edit their own unconfirmed private appointment (title, times, description, etc.)
-        // but cannot set their own participant status to 'confirmed' or 'declined'
+          resource.data.get('private', false) != true &&
+          (isSelfJoin() || isSelfLeave() || isSelfParticipantEdit())) ||
+        isOwnPrivateEdit();
+
+      allow delete: if isAdmin() ||
+        ('boatId' in resource.data && isBootswart(resource.data.boatId)) ||
         (isMember() &&
-          'private' in resource.data && resource.data.private == true &&
+          resource.data.get('private', false) == true &&
           resource.data.participants.size() == 1 &&
           resource.data.participants[0].userId == request.auth.uid &&
-          resource.data.participants[0].status != 'confirmed' &&
-          request.resource.data.participants.size() == 1 &&
-          request.resource.data.participants[0].userId == request.auth.uid &&
-          request.resource.data.participants[0].status != 'confirmed');
-
-      allow delete: if isAdmin() || ('boatId' in resource.data && isBootswart(resource.data.boatId)) || ('private' in resource.data && resource.data.private == true && resource.data.participants.size() == 1 && resource.data.participants[0].userId == request.auth.uid);
+          resource.data.participants[0].status != 'confirmed');
     }
 
     match /systemConfig/default {
       allow read: if isAuthenticated();
       allow write: if isSuperAdmin();
+      // Admins steuern nach Aktivierung des Saisonmodells den Saisonwechsel (nächste Saison öffnen / starten).
+      allow update: if isAdmin() &&
+        resource.data.get('seasonModelActivatedAt', null) != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentSeason', 'nextSeasonOpen', 'nextSeasonOpenedAt', 'currentSeasonStartedAt', 'updatedAt']) &&
+        request.resource.data.currentSeason is int &&
+        request.resource.data.currentSeason in [resource.data.currentSeason, resource.data.currentSeason + 1] &&
+        request.resource.data.nextSeasonOpen is bool;
     }
 
     match /activityLog/{entryId} {
       allow read: if isAdmin();
-      allow create: if isMember();
+      // Einträge sind an den angemeldeten Nutzer gebunden und können nicht rückdatiert werden.
+      allow create: if isMember() &&
+        request.resource.data.keys().hasOnly(['type', 'entityId', 'entityType', 'actorId', 'actorName', 'timestamp', 'details']) &&
+        request.resource.data.actorId == request.auth.uid &&
+        request.resource.data.type is string &&
+        request.resource.data.entityType in ['reservation', 'workHour', 'boat', 'member', 'system'] &&
+        request.resource.data.timestamp is timestamp &&
+        request.resource.data.timestamp > request.time - duration.value(1, 'h') &&
+        request.resource.data.timestamp < request.time + duration.value(1, 'h');
       allow update, delete: if false;
     }
   }

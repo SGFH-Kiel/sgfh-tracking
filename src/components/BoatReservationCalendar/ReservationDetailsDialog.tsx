@@ -245,7 +245,8 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
     }
     if (isSubmitting) return;
 
-    const nextStatus = boat?.requiresApproval && currentUser?.id !== boat?.bootswart ? 'pending' : 'approved';
+    const isOwnBoatBootswart = !!currentUser && (currentUser.id === boat?.bootswart || currentUser.id === boat?.bootswart2);
+    const nextStatus = boat?.requiresApproval && !isOwnBoatBootswart ? 'pending' : 'approved';
 
     setIsSubmitting(true);
     try {

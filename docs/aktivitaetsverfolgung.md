@@ -21,10 +21,10 @@ Das Aktivitätsverfolgungsmodul besteht aus zwei Teilen:
 | `id`        | `string`             | Automatisch generierte Firestore-ID               |
 | `type`      | `ActivityType`       | Art der Aktivität (z. B. `reservation.created`)   |
 | `entityId`  | `string`             | ID der betroffenen Entität                        |
-| `entityType`| `string`             | Entitätstyp: `reservation`, `workHour`, `boat`, `member` |
+| `entityType`| `string`             | Entitätstyp: `reservation`, `workHour`, `boat`, `member`, `system` |
 | `actorId`   | `string`             | User-ID des Ausführenden                          |
 | `actorName` | `string`             | Anzeigename des Ausführenden                      |
-| `timestamp` | `Date`               | Zeitstempel der Aktion (serverseiting)            |
+| `timestamp` | `Date`               | Zeitstempel der Aktion (Client-Zeit, per Regel auf ±1 h zur Serverzeit begrenzt) |
 | `details`   | `Record<string, unknown>` | Typ-spezifische Zusatzinformationen          |
 
 ### `ActivityType`
@@ -34,7 +34,12 @@ reservation.created | reservation.status_changed | reservation.deleted
 workHour.created    | workHour.updated   | workHour.deleted
 boat.created        | boat.updated       | boat.deleted
 member.created      | member.updated     | member.deactivated | member.deleted
+season.backfill     | season.activated   | season.next_opened | season.started
 ```
+
+Die `season.*`-Einträge (Entitätstyp `system`, `entityId: systemConfig/default`) protokollieren Backfill, Aktivierung und Saisonwechsel. Ein zurückgenommener Saisonstart wird als `season.started` mit `details.undo = true` geschrieben. Saisonänderungen einzelner Einträge erscheinen als `workHour.updated` mit `details.action = season_changed`.
+
+Die Firestore-Regeln binden jeden Eintrag an den angemeldeten Nutzer (`actorId == uid`), erlauben nur die oben genannten Felder und Entitätstypen und verlangen einen Zeitstempel innerhalb ±1 Stunde der Serverzeit (keine Rückdatierung).
 
 ### `UserPreferences` (Erweiterung)
 

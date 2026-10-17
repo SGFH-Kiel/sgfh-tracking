@@ -17,7 +17,7 @@ export interface UserPreferences {
   showCancelledReservations?: boolean;
 }
 
-export type ActivityEntityType = 'reservation' | 'workHour' | 'boat' | 'member';
+export type ActivityEntityType = 'reservation' | 'workHour' | 'boat' | 'member' | 'system';
 
 export type ActivityType =
   | 'reservation.created'
@@ -32,7 +32,11 @@ export type ActivityType =
   | 'member.created'
   | 'member.updated'
   | 'member.deactivated'
-  | 'member.deleted';
+  | 'member.deleted'
+  | 'season.backfill'
+  | 'season.activated'
+  | 'season.next_opened'
+  | 'season.started';
 
 export interface ActivityLogEntry {
   id: string;
@@ -104,6 +108,8 @@ export interface WorkParticipant {
   confirmedByUserId?: string;
   confirmedByUserName?: string;
   confirmedAt?: Date;
+  season?: number; // Saison (Jahreszahl), für die diese Stunden zählen; fehlt bei Alt-Einträgen
+  seasonManual?: boolean; // true, wenn das Mitglied bewusst eine andere als die Standard-Saison gewählt hat
 }
 
 export type ReservationStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'cancelled';
@@ -150,8 +156,15 @@ export interface PublicBoatReservation {
 
 export interface SystemConfig {
   id: string;
-  yearChangeDate: Date; // Stored with year 2000, only month and day are relevant
+  yearChangeDate: Date; // Stored with year 2000, only month and day are relevant. Nach Aktivierung des Saisonmodells nur noch Fallback für Alt-Einträge.
   workHourThreshold: number;
+  // Saisonmodell (siehe docs/arbeitsstunden-logik.md). Ohne `seasonModelActivatedAt` gilt ausschließlich `yearChangeDate`.
+  currentSeason?: number; // Saison, deren Stunden für die Reservierungsberechtigung zählen
+  nextSeasonOpen?: boolean; // Buchung für currentSeason + 1 möglich (Überlappungsphase)
+  nextSeasonOpenedAt?: Date;
+  currentSeasonStartedAt?: Date;
+  seasonBackfillAt?: Date; // Zeitpunkt des letzten Backfills der Saisonzuordnung
+  seasonModelActivatedAt?: Date;
   calendarDefaults?: CalendarDefaults;
   featureFlags?: {
     enableMemberCreation?: boolean;

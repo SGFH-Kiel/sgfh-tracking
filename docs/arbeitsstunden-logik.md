@@ -10,11 +10,48 @@ Die Arbeitsstundenlogik ist in `src/domain/workHours.ts` zentralisiert.
 - ausstehende Einträge bleiben sichtbar und werden separat summiert
 - abgelehnte Einträge werden getrennt ausgewiesen
 
-## Jahreswechsel
+## Saisonmodell
 
-- das Konfigurationsdatum `yearChangeDate` definiert den Beginn des Arbeitsjahres
-- wenn das Datum im aktuellen Kalenderjahr noch nicht erreicht ist, beginnt das aktive Arbeitsjahr im Vorjahr
-- die Berechnung ist deterministisch und rein datengetrieben
+Die Saisonlogik liegt in `src/domain/seasons.ts`. Eine Saison wird über die Jahreszahl ihres Segelsommers benannt (z. B. **Saison 2026**).
+
+### Grundidee: Saison als Klammer
+
+- Jeder Teilnehmereintrag gehört explizit zu einer Saison (`WorkParticipant.season`).
+- `systemConfig.currentSeason` ist die **aktuelle Saison**. Nur ihre Stunden zählen für die Reservierungsberechtigung.
+- `systemConfig.nextSeasonOpen` öffnet die **Überlappungsphase**. Dann können Einträge auch schon für `currentSeason + 1` gebucht werden.
+- Der Wechsel erfolgt über zwei Admin-Aktionen (Systemeinstellungen → Saisonsteuerung), nicht über ein festes Datum:
+  1. **„Buchung für Saison N+1 öffnen“**, typischerweise im Herbst ab Auskranen oder Winterarbeiten. Die Reservierungsberechtigung richtet sich weiter nach Saison N, die Boote bleiben nutzbar.
+  2. **„Saison N+1 starten“**, typischerweise im Frühjahr bei Freigabe der Boote. Ab dann zählt Saison N+1 für Reservierungen, und die Überlappung endet.
+- Ein separates „Saison beenden“ gibt es nicht: Saison N endet implizit mit dem Start von N+1.
+
+```
+ Frühjahr N            Sommer N              Herbst N (Auskranen)      Frühjahr N+1
+ ──[Saison N starten]────────────────────────[N+1 öffnen]──────────────[Saison N+1 starten]──
+   Berechtigung: Stunden N ───────────────────────────────────────────►│ Stunden N+1
+   Buchbar: N ───────────────────────────────►│ Buchbar: N oder N+1 ───►│ Buchbar: N+1
+```
+
+### Standard-Saison neuer Einträge
+
+- Außerhalb der Überlappung gilt immer die aktuelle Saison.
+- In der Überlappung zählt ein neuer Eintrag für die **aktuelle** Saison, solange das Mitglied dort noch Stunden offen hat. Bestätigte und ausstehende Einträge werden dabei eingerechnet. Sind die Stunden abgedeckt, zählt der Eintrag für die **nächste** Saison.
+- Mitglieder können abweichend wählen. Dann wird `seasonManual: true` gespeichert und bei der Bestätigung als gelber Chip „Saison X · abweichend“ angezeigt (Termindetails und Mitgliederstunden).
+- Admins und zuständige Bootswarte können die Saison eines Eintrags jederzeit über den Saison-Chip korrigieren: Vorsaison, aktuelle Saison und – falls offen – die nächste. Diese Korrektur gilt als verbindlich (`seasonManual` entfällt) und wird im Audit-Log protokolliert (`action: season_changed`).
+- Mitglieder können die Saison eigener, noch nicht bestätigter Einträge selbst ändern.
+
+### Alt-Einträge und `yearChangeDate`
+
+- Solange das Saisonmodell nicht aktiviert ist (`seasonModelActivatedAt` fehlt), wird **ausschließlich** wie bisher mit dem Stichtag `yearChangeDate` gerechnet. Gespeicherte `season`-Werte werden ignoriert, Saisonelemente in der UI ausgeblendet.
+- Der alte Abrechnungszeitraum wird so auf eine Saison abgebildet: Saison = Jahr, in dessen Sommer (1. Juli) der Zeitraum liegt. Bei Stichtag 01.10. ist der Zeitraum 01.10.2025 – 30.09.2026 also **Saison 2026**.
+- Nach der Aktivierung dient `yearChangeDate` nur noch als Fallback für Einträge ohne gespeicherte Saison.
+- Umstellung: siehe `docs/migrationen.md` (Backfill → Aktivierung).
+
+### Ansicht „Arbeitsstunden“
+
+- Bei aktivem Saisonmodell gibt es oben eine Saison-Auswahl (aktuelle, nächste und alle früheren Saisons mit Einträgen). Die Anzahl offener Prüfungen steht pro Saison dabei.
+- In der Überlappung zeigt „Meine Stunden“ zusätzlich den Stand der nächsten Saison an.
+- Liegen in einer anderen Saison offene Prüfungen, weist die Mitgliederübersicht darauf hin.
+- Der Excel-Export enthält die angezeigte Saison (Metadaten und Dateiname).
 
 ## Status
 
@@ -70,9 +107,21 @@ Ein öffentlicher Termin ist für Metadaten-Änderungen gesperrt, wenn beide Bed
 - `appointment.endTime < now` (Termin liegt in der Vergangenheit)
 - mindestens ein Teilnehmer hat `status === 'confirmed'`
 
+Die Sperren für Admins (vergangene, bestätigte öffentliche Termine) und der Ausschluss von Admins bei privaten Einträgen werden **nur clientseitig** durchgesetzt. Die Firestore-Regeln erlauben Admins weiterhin alle Änderungen an Arbeitsterminen.
+
 ### Sperrbedingung (private Termine)
 
-Ein privater Termin ist für den Ersteller gesperrt, sobald mindestens ein Teilnehmer `status === 'confirmed'` hat (unabhängig davon, ob der Termin in der Vergangenheit liegt).
+Ein privater Termin ist für den Ersteller gesperrt, sobald mindestens ein Teilnehmer `status === 'confirmed'` hat (unabhängig davon, ob der Termin in der Vergangenheit liegt). Die Sperre gilt auch für das Löschen und wird zusätzlich in den Firestore-Regeln durchgesetzt. Serienkopien werden für private Einträge nicht angeboten.
+
+### Mitglieder in öffentlichen Terminen
+
+Mitglieder dürfen ausschließlich ihren **eigenen** Teilnehmereintrag ändern (serverseitig per Firestore-Regel geprüft):
+
+- **Eintragen**: neuer Eintrag mit Status `pending` am Ende der Liste, keine Bestätigungsfelder, `maxParticipants` wird eingehalten
+- **Austragen**: nur, solange der eigene Eintrag nicht bestätigt ist
+- **Bearbeiten**: Zeiten und Saison des eigenen, nicht bestätigten Eintrags
+
+Bootswarte dürfen Termine nur ihren eigenen Booten zuordnen. Beim Speichern von Termin-Metadaten wird die Teilnehmerliste nicht mitgeschrieben, damit gleichzeitige Bestätigungen nicht überschrieben werden.
 
 Die private Sperre schützt bereits angerechnete Arbeitsstunden vor nachträglicher Manipulation. Superadmins sind davon ausgenommen und können jederzeit korrigieren.
 

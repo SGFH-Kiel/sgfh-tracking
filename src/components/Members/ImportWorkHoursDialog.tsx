@@ -18,6 +18,7 @@ import {
 import { read, utils } from 'xlsx';
 import { WorkParticipant, User } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
+import { formatSeason, getCurrentSeason, getManageableSeasons, isSeasonModelActive } from '../../domain/seasons';
 
 interface ImportWorkHoursDialogProps {
   open: boolean;
@@ -36,7 +37,12 @@ export const ImportWorkHoursDialog: React.FC<ImportWorkHoursDialogProps> = ({
   onClose,
   onImportComplete
 }) => {
-  const { database, boats } = useApp();
+  const { database, boats, systemConfig, isAdmin, currentUser } = useApp();
+  // Bootswarte dürfen nur für eigene Boote importieren (Termine ohne Boot sind Admins vorbehalten).
+  const importableBoats = isAdmin ? boats : boats.filter((boat) => boat.bootswart === currentUser?.id || boat.bootswart2 === currentUser?.id);
+  const modelActive = isSeasonModelActive(systemConfig);
+  const seasonOptions = getManageableSeasons(systemConfig);
+  const [season, setSeason] = useState<number>(getCurrentSeason(systemConfig));
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedBoat, setSelectedBoat] = useState<string>('');
@@ -49,6 +55,7 @@ export const ImportWorkHoursDialog: React.FC<ImportWorkHoursDialogProps> = ({
     setTitle('');
     setDescription('');
     setSelectedBoat('');
+    setSeason(getCurrentSeason(systemConfig));
     setFile(null);
     setError(null);
     setPreview([]);
@@ -149,6 +156,8 @@ export const ImportWorkHoursDialog: React.FC<ImportWorkHoursDialogProps> = ({
             endTime: new Date(p.endTime),
             createdAt: new Date(),
             updatedAt: new Date(),
+            // Importierte Stunden werden direkt der gewählten Saison zugeordnet (erst nach Aktivierung des Saisonmodells).
+            ...(modelActive ? { season } : {}),
           };
         })
       );
@@ -205,16 +214,34 @@ export const ImportWorkHoursDialog: React.FC<ImportWorkHoursDialogProps> = ({
               onChange={(e) => setSelectedBoat(e.target.value)}
               label="Boot (Optional)"
             >
-              <MenuItem value="">
-                <em>Keins</em>
-              </MenuItem>
-              {boats.map((boat) => (
+              {isAdmin && (
+                <MenuItem value="">
+                  <em>Keins</em>
+                </MenuItem>
+              )}
+              {importableBoats.map((boat) => (
                 <MenuItem key={boat.id} value={boat.id}>
                   {boat.name}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
+
+          {modelActive && (
+            <FormControl fullWidth>
+              <InputLabel id="import-season-label">Zählt für Saison</InputLabel>
+              <Select
+                labelId="import-season-label"
+                value={season}
+                onChange={(e) => setSeason(Number(e.target.value))}
+                label="Zählt für Saison"
+              >
+                {seasonOptions.map((option) => (
+                  <MenuItem key={option} value={option}>{formatSeason(option)}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
 
           <Box>
             <input
@@ -259,7 +286,7 @@ export const ImportWorkHoursDialog: React.FC<ImportWorkHoursDialogProps> = ({
         <Button
           onClick={handleImport}
           variant="contained"
-          disabled={!file || importing}
+          disabled={!file || importing || (!isAdmin && !selectedBoat)}
         >
           Importieren
         </Button>
