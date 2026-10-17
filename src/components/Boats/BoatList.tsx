@@ -34,6 +34,7 @@ import {
 } from '@mui/icons-material';
 import { Boat, User } from '../../types/models';
 import { useApp } from '../../contexts/AppContext';
+import { useConfirm } from '../common/ConfirmProvider';
 import { writeActivityLog } from '../../domain/activityLog';
 import { getRandomBoatColor } from '../../utils/colors';
 import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
@@ -41,6 +42,7 @@ import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
 export const BoatList: React.FC = () => {
   const dialogProps = useResponsiveDialogProps();
   const { isAdmin, database, currentUser, boats, reloadBoats } = useApp();
+  const confirm = useConfirm();
   const { setBreadcrumbs } = usePageTitle();
   const [open, setOpen] = useState(false);
   const [editingBoat, setEditingBoat] = useState<Boat | null>(null);
@@ -162,7 +164,13 @@ export const BoatList: React.FC = () => {
 
   const handleDelete = async (boatId: string) => {
     const boat = boats.find((b) => b.id === boatId);
-    if (window.confirm('Sind Sie sicher, dass Sie dieses Boot löschen möchten?')) {
+    const confirmed = await confirm({
+      title: 'Boot löschen?',
+      message: `„${boat?.name ?? 'Boot'}“ wird endgültig gelöscht. Bestehende Reservierungen und Termine verweisen danach auf ein unbekanntes Boot.`,
+      confirmLabel: 'Löschen',
+      destructive: true,
+    });
+    if (confirmed) {
       try {
         await database.deleteDocument('boats', boatId);
         if (currentUser) {

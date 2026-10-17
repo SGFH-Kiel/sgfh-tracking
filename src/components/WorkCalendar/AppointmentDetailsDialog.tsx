@@ -47,6 +47,7 @@ import {
   resolveEntrySeason,
 } from '../../domain/seasons';
 import { useDefaultSeason } from '../../hooks/memberHooks';
+import { setParticipantStatus } from '../../domain/workHourActions';
 import { SeasonChip, SeasonSelect } from '../Members/SeasonFields';
 import { useResponsiveDialogProps } from '../../hooks/useIsMobile';
 
@@ -292,52 +293,10 @@ export const AppointmentDetailsDialog: React.FC<AppointmentDetailsDialogProps> =
   };
 
   const handleUpdateParticipantStatus = async (participantId: string, status: 'confirmed' | 'declined' | 'pending') => {
+    if (!currentUser) return;
     setLoading(true);
     try {
-      const latestAppointment = await getLatestAppointment();
-      if (!latestAppointment) {
-        return;
-      }
-
-      const targetParticipant = latestAppointment.participants.find((p) => p.userId === participantId);
-      const previousStatus = targetParticipant?.status;
-
-      const updatedParticipants = latestAppointment.participants.map((p) => {
-        if (p.userId !== participantId) return p;
-        const next: WorkParticipant = { ...p, status, updatedAt: new Date() };
-        if (status === 'confirmed' && currentUser) {
-          next.confirmedByUserId = currentUser.id;
-          next.confirmedByUserName = currentUser.displayName;
-          next.confirmedAt = new Date();
-        } else {
-          // Strip confirmation metadata when reverting to pending or moving to declined
-          delete next.confirmedByUserId;
-          delete next.confirmedByUserName;
-          delete next.confirmedAt;
-        }
-        return next;
-      });
-
-      await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
-        participants: updatedParticipants,
-      });
-      if (currentUser) {
-        await writeActivityLog(database, {
-          type: 'workHour.updated',
-          entityId: appointment.id,
-          entityType: 'workHour',
-          actorId: currentUser.id,
-          actorName: currentUser.displayName,
-          details: {
-            action: 'participant_status_changed',
-            title: appointment.title,
-            targetUserId: participantId,
-            targetUserName: targetParticipant?.userName,
-            previousStatus,
-            newStatus: status,
-          },
-        });
-      }
+      await setParticipantStatus(database, appointment.id, participantId, status, currentUser);
       await onUpdate?.();
     } catch (error) {
       console.error('Error updating participant status:', error);

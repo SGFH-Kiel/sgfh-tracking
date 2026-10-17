@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import humanizeDuration from 'humanize-duration';
 import { useApp } from '../contexts/AppContext';
 import { WorkAppointment } from '../types/models';
 import { User } from '../types/models';
 import { calculateUserWorkHourSnapshot, calculateWorkHoursForUsers, UserWorkHoursSnapshot, WorkHourEntry } from '../domain/workHours';
-import { formatSeason, getCurrentSeason, getDefaultSeasonForNewEntry, isNextSeasonOpen, isSeasonModelActive } from '../domain/seasons';
-
-const humanizer = humanizeDuration.humanizer({ language: 'de', round: true, units: ['h', 'm'], delimiter: ' und ' });
+import { getCurrentSeason, getDefaultSeasonForNewEntry, isNextSeasonOpen } from '../domain/seasons';
+import { getReservationEligibility } from '../domain/eligibility';
 
 export interface MemberEligibility {
   loading: boolean;
@@ -199,27 +197,7 @@ export const useMemberReservationEligibility = (): MemberEligibility => {
     };
   }
 
-  const missingRequirements: string[] = [];
-
-  if (!currentUser.feesPaid) {
-    missingRequirements.push('Mitgliedsbeitrag nicht bezahlt');
-  }
-  if (currentUser.deactivated) {
-    missingRequirements.push('Mitglied deaktiviert');
-  }
-
-  // Only check work hours if skipHours is not enabled
-  if (!currentUser.skipHours) {
-    const remainingDuration = (systemConfig.workHourThreshold * 60) - currentWorkMinutes;
-
-    if (remainingDuration > 0) {
-      missingRequirements.push(
-        isSeasonModelActive(systemConfig)
-          ? `Arbeitsstunden ${formatSeason(season)} nicht erfüllt (${humanizer(remainingDuration * 60000)})`
-          : `Arbeitsstunden nicht erfüllt (${humanizer(remainingDuration * 60000)})`
-      );
-    }
-  }
+  const { missingRequirements } = getReservationEligibility(currentUser, currentWorkMinutes, systemConfig, season);
 
   if (error) {
     missingRequirements.push('Fehler beim Abrufen der Arbeitsstunden');

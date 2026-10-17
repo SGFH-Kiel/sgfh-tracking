@@ -13,6 +13,8 @@ import {
   Select,
   MenuItem,
   Divider,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
@@ -82,6 +84,7 @@ export const SystemConfig: React.FC = () => {
         yearChangeDate: config.yearChangeDate,
         workHourThreshold: config.workHourThreshold,
         ...(config.calendarDefaults ? { calendarDefaults: config.calendarDefaults } : {}),
+        featureFlags: { ...(config.featureFlags ?? {}), uiV2ForMembers: config.featureFlags?.uiV2ForMembers === true },
         updatedAt: new Date(),
       };
       const existing = await database.getDocument<SystemConfigType>('systemConfig', 'default');
@@ -160,6 +163,26 @@ export const SystemConfig: React.FC = () => {
           }
           InputProps={{ inputProps: { min: 0 } }}
         />
+
+        <Divider />
+        <Typography variant="subtitle1" fontWeight="medium">
+          Neue Oberfläche (v2)
+        </Typography>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={config.featureFlags?.uiV2ForMembers === true}
+              onChange={(e) => setConfig({
+                ...config,
+                featureFlags: { ...(config.featureFlags ?? {}), uiV2ForMembers: e.target.checked },
+              })}
+            />
+          }
+          label="Für alle Mitglieder freischalten"
+        />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: -2 }}>
+          Admins können die neue Oberfläche immer als Vorschau testen. Nach der Freigabe kann jedes Mitglied in „Meine Einstellungen“ selbst umschalten; Standard bleibt die klassische Ansicht.
+        </Typography>
 
         <Divider />
         <Typography variant="subtitle1" fontWeight="medium">

@@ -16,6 +16,7 @@ export interface UserPreferences {
   calendarDefaults?: Partial<CalendarDefaults>;
   showCancelledReservations?: boolean;
   seenChangelogIds?: string[]; // IDs gelesener Einträge unter „Neuigkeiten“
+  uiVersion?: 'v1' | 'v2'; // gewählte Oberfläche (v2 nur, wenn freigeschaltet; siehe docs/ux-audit-v2.md)
 }
 
 export type ActivityEntityType = 'reservation' | 'workHour' | 'boat' | 'member' | 'system';
@@ -171,6 +172,7 @@ export interface SystemConfig {
   calendarDefaults?: CalendarDefaults;
   featureFlags?: {
     enableMemberCreation?: boolean;
+    uiV2ForMembers?: boolean; // neue Oberfläche (v2) auch für Mitglieder freigeschaltet; Admins dürfen sie immer testen
   };
   createdAt?: Date;
   updatedAt?: Date;

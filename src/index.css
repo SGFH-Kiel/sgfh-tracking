@@ -11,3 +11,14 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Kalender-Listenansicht (v2): lange Titel umbrechen statt abschneiden */
+.rbc-agenda-view table.rbc-agenda-table td.rbc-agenda-event-cell {
+  white-space: normal;
+  word-break: break-word;
+}
+.rbc-agenda-view table.rbc-agenda-table td.rbc-agenda-date-cell,
+.rbc-agenda-view table.rbc-agenda-table td.rbc-agenda-time-cell {
+  white-space: nowrap;
+  font-size: 0.875rem;
+}

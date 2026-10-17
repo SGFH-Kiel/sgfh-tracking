@@ -12,7 +12,7 @@ import { Calendar, dayjsLocalizer } from 'react-big-calendar';
 import dayjs from 'dayjs'
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useApp } from '../../contexts/AppContext';
-import { BoatReservation, CalendarView } from '../../types/models';
+import { BoatReservation } from '../../types/models';
 import { syncPublicReservationFeed } from '../../domain/reservationSync';
 import { writeActivityLog } from '../../domain/activityLog';
 import { getContrastColor } from '../../utils/colors';
@@ -20,11 +20,15 @@ import { ReservationDialog } from './ReservationDialog';
 import { ReservationDetailsDialog } from './ReservationDetailsDialog';
 import BlockIcon from '@mui/icons-material/Block';
 import AddIcon from '@mui/icons-material/Add';
-import { getDefaultNewSlot } from '../../hooks/useIsMobile';
+import { getDefaultNewSlot, useIsMobile } from '../../hooks/useIsMobile';
+import { CALENDAR_MESSAGES, CalendarViewOption } from '../Calendar/calendarMessages';
 
 const localizer = dayjsLocalizer(dayjs);
 
-export const BoatReservationCalendar: React.FC = () => {
+export const BoatReservationCalendar: React.FC<{ listView?: boolean }> = ({ listView = false }) => {
+  const isMobile = useIsMobile();
+  // v2: Listenansicht verfügbar und auf Smartphones Standard
+  const preferList = listView && isMobile;
   const { database, currentUser, boats, systemConfig, isAdmin, isSuperAdmin, reloadCurrentUser } = useApp();
   const { canReserve, missingRequirements } = useMemberReservationEligibility();
   const [allReservations, setAllReservations] = useState<BoatReservation[]>([]);
@@ -42,19 +46,19 @@ export const BoatReservationCalendar: React.FC = () => {
     ? allReservations
     : allReservations.filter((r) => r.status !== 'cancelled');
 
-  const defaultView: CalendarView =
+  const defaultView: CalendarViewOption = preferList ? 'agenda' :
     currentUser?.preferences?.calendarDefaults?.vormerkbuch ??
     systemConfig.calendarDefaults?.vormerkbuch ??
     'week';
-  const [selectedView, setSelectedView] = useState<CalendarView>(defaultView);
+  const [selectedView, setSelectedView] = useState<CalendarViewOption>(defaultView);
 
   useEffect(() => {
-    setSelectedView(
+    setSelectedView(preferList ? 'agenda' :
       currentUser?.preferences?.calendarDefaults?.vormerkbuch ??
       systemConfig.calendarDefaults?.vormerkbuch ??
       'week'
     );
-  }, [currentUser?.preferences?.calendarDefaults?.vormerkbuch, systemConfig.calendarDefaults?.vormerkbuch]);
+  }, [preferList, currentUser?.preferences?.calendarDefaults?.vormerkbuch, systemConfig.calendarDefaults?.vormerkbuch]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -243,20 +247,13 @@ export const BoatReservationCalendar: React.FC = () => {
           onSelectSlot={handleSelectSlot}
           onSelectEvent={handleSelectEvent}
           view={selectedView}
-          views={['month', 'week', 'day']}
+          views={listView ? ['agenda', 'month', 'week', 'day'] : ['month', 'week', 'day']}
           onNavigate={(range) => {
             setDisplayDate(range);
           }}
-          onView={(v) => setSelectedView(v as CalendarView)}
+          onView={(v) => setSelectedView(v as CalendarViewOption)}
           titleAccessor="title"
-          messages={{
-            next: 'Weiter',
-            previous: 'Zurück',
-            today: 'Heute',
-            month: 'Monat',
-            week: 'Woche',
-            day: 'Tag',
-          }}
+          messages={CALENDAR_MESSAGES}
         />
       </Box>
 

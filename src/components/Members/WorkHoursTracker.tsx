@@ -41,7 +41,9 @@ import {
   Search as SearchIcon,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
+import { setParticipantStatus } from '../../domain/workHourActions';
 import { writeActivityLog } from '../../domain/activityLog';
+import { useConfirm } from '../common/ConfirmProvider';
 import { useApp } from '../../contexts/AppContext';
 import { usePageTitle } from '../../contexts/PageTitleContext';
 import { useCalculateWorkHours, UserWorkHours } from '../../hooks/memberHooks';
@@ -127,6 +129,7 @@ const STATUS_RANK: Record<UserWorkHours['status'], number> = {
 export const WorkHoursTracker: React.FC = () => {
   const { isAdmin, isAnyBootswart, currentUser, systemConfig, database, boats } = useApp();
   const { enqueueSnackbar } = useSnackbar();
+  const confirm = useConfirm();
   const [privateHoursDialogOpen, setPrivateHoursDialogOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<WorkAppointment | undefined>(undefined);
   const [detailAppointment, setDetailAppointment] = useState<WorkAppointment | undefined>(undefined);
@@ -292,8 +295,6 @@ export const WorkHoursTracker: React.FC = () => {
   const changeParticipantStatus = useCallback((appointment: WorkAppointment, userId: string, status: 'confirmed' | 'declined' | 'pending') => async () => {
     if (!currentUser) return;
     const key = overrideKey(appointment.id, userId);
-    const targetParticipant = appointment.participants.find(p => p.userId === userId);
-    const previousStatus = targetParticipant?.status;
 
     // Apply optimistic override so the UI updates immediately and scroll position is preserved.
     setParticipantOverrides(prev => {
@@ -313,43 +314,7 @@ export const WorkHoursTracker: React.FC = () => {
     });
 
     try {
-      const latestAppointment = await database.getDocument<WorkAppointment>('workAppointments', appointment.id);
-      if (!latestAppointment) {
-        return;
-      }
-
-      const updatedParticipants = latestAppointment.participants.map(p => {
-        if (p.userId !== userId) return p;
-        const next: WorkParticipant = { ...p, status, updatedAt: new Date() };
-        if (status === 'confirmed') {
-          next.confirmedByUserId = currentUser.id;
-          next.confirmedByUserName = currentUser.displayName;
-          next.confirmedAt = new Date();
-        } else {
-          delete next.confirmedByUserId;
-          delete next.confirmedByUserName;
-          delete next.confirmedAt;
-        }
-        return next;
-      });
-      await database.updateDocument<WorkAppointment>('workAppointments', appointment.id, {
-        participants: updatedParticipants,
-      });
-      await writeActivityLog(database, {
-        type: 'workHour.updated',
-        entityId: appointment.id,
-        entityType: 'workHour',
-        actorId: currentUser.id,
-        actorName: currentUser.displayName,
-        details: {
-          action: 'participant_status_changed',
-          title: appointment.title,
-          targetUserId: userId,
-          targetUserName: targetParticipant?.userName,
-          previousStatus,
-          newStatus: status,
-        },
-      });
+      await setParticipantStatus(database, appointment.id, userId, status, currentUser);
       await refreshAppointments();
     } catch (err) {
       console.error('Error updating participant status:', err);
@@ -1121,7 +1086,24 @@ export const WorkHoursTracker: React.FC = () => {
           appointment={detailAppointment}
           onUpdate={async () => { await refreshAppointments(); }}
           onDelete={async () => {
+            const confirmed = await confirm({
+              title: 'Eintrag löschen?',
+              message: `„${detailAppointment.title}“ wird mit allen Teilnehmern und Stunden endgültig gelöscht.`,
+              confirmLabel: 'Löschen',
+              destructive: true,
+            });
+            if (!confirmed) return;
             await database.deleteDocument('workAppointments', detailAppointment.id);
+            if (currentUser) {
+              await writeActivityLog(database, {
+                type: 'workHour.deleted',
+                entityId: detailAppointment.id,
+                entityType: 'workHour',
+                actorId: currentUser.id,
+                actorName: currentUser.displayName,
+                details: { title: detailAppointment.title },
+              });
+            }
             setDetailAppointment(undefined);
             await refreshAppointments();
           }}

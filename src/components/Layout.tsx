@@ -43,6 +43,8 @@ import { UserPreferencesDialog } from './UserPreferencesDialog';
 import { isSeasonModelActive } from '../domain/seasons';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useChangelog } from '../hooks/useChangelog';
+import { TryV2Banner } from './TryV2Banner';
+import { InstallAppButton } from '../pwa/PwaComponents';
 import { ChangelogView } from './Changelog/ChangelogView';
 import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -264,6 +266,9 @@ export const Layout: React.FC = () => {
           role="presentation" 
           onClick={toggleDrawer}
         >
+          <Box sx={{ px: 2, pb: 1 }} onClick={(e) => e.stopPropagation()}>
+            <InstallAppButton fullWidth />
+          </Box>
           <List>
             {menuItems.map((item) => (
               <ListItem key={item.text}>
@@ -290,8 +295,11 @@ export const Layout: React.FC = () => {
         }}
       >
         <Container maxWidth="lg" sx={{ mt: { xs: 2, sm: 3 }, mb: { xs: 3, sm: 4 }, px: { xs: 1, sm: 3 } }}>
+          <TryV2Banner />
           <Routes>
             <Route path="/" element={<CalendarTabs />} />
+            {/* gleiche Adressen wie in v2, damit Links beim Umschalten gültig bleiben */}
+            <Route path="/calendar" element={<CalendarTabs />} />
             <Route path="/hours" element={<WorkHoursTracker />} />
             <Route path="/changelog" element={<ChangelogView />} />
             {isAdmin && (

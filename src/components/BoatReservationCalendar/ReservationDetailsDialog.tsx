@@ -24,6 +24,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/de';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { useApp } from '../../contexts/AppContext';
+import { setReservationStatus } from '../../domain/reservationActions';
 import { BoatReservation, Boat } from '../../types/models';
 import { useOverlappingReservations } from '../../hooks/useOverlappingReservations';
 import { useSnackbar } from 'notistack';
@@ -136,29 +137,11 @@ export const ReservationDetailsDialog: React.FC<ReservationDetailsDialogProps> =
   const canEdit = (isOwner && reservation.status === 'draft') || (isSuperAdmin && isFutureReservation && !['cancelled', 'rejected'].includes(reservation.status));
 
   const handleStatusChange = async (newStatus: 'approved' | 'rejected' | 'cancelled') => {
-    if (!isBootswartOrAdmin || isSubmitting) return;
+    if (!isBootswartOrAdmin || isSubmitting || !currentUser) return;
 
     setIsSubmitting(true);
     try {
-      await database.updateDocument('boatReservations', reservation.id, {
-        status: newStatus,
-        updatedAt: new Date(),
-      });
-      await syncPublicReservationFeed(database, {
-        ...reservation,
-        status: newStatus,
-        updatedAt: new Date(),
-      }, boat ? [boat] : []);
-      if (currentUser) {
-        await writeActivityLog(database, {
-          type: 'reservation.status_changed',
-          entityId: reservation.id,
-          entityType: 'reservation',
-          actorId: currentUser.id,
-          actorName: currentUser.displayName,
-          details: { title: reservation.title, previousStatus: reservation.status, newStatus },
-        });
-      }
+      await setReservationStatus(database, reservation, newStatus, currentUser, boat ? [boat] : []);
       onUpdate();
       onClose();
     } catch (error) {

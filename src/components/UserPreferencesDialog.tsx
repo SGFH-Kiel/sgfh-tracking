@@ -11,11 +11,15 @@ import {
   Select,
   MenuItem,
   CircularProgress,
+  Divider,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import { Save as SaveIcon } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { useApp } from '../contexts/AppContext';
 import { CalendarView, UserPreferences } from '../types/models';
+import { canUseUiV2 } from '../domain/uiVersion';
 
 interface UserPreferencesDialogProps {
   open: boolean;
@@ -29,7 +33,8 @@ const CALENDAR_VIEW_OPTIONS: { value: CalendarView; label: string }[] = [
 ];
 
 export const UserPreferencesDialog: React.FC<UserPreferencesDialogProps> = ({ open, onClose }) => {
-  const { database, currentUser, systemConfig, reloadCurrentUser } = useApp();
+  const { database, currentUser, systemConfig, reloadCurrentUser, isAdmin } = useApp();
+  const canUseV2 = canUseUiV2(systemConfig, isAdmin);
   const { enqueueSnackbar } = useSnackbar();
   const [saving, setSaving] = useState(false);
   const [prefs, setPrefs] = useState<UserPreferences>({});
@@ -74,6 +79,23 @@ export const UserPreferencesDialog: React.FC<UserPreferencesDialogProps> = ({ op
       </Box>
       <DialogContent>
         <Box sx={{ py: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {canUseV2 && (
+            <>
+              <Typography variant="subtitle2" color="text.secondary">
+                Oberfläche
+              </Typography>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={prefs.uiVersion === 'v2'}
+                    onChange={(e) => setPrefs({ ...prefs, uiVersion: e.target.checked ? 'v2' : 'v1' })}
+                  />
+                }
+                label={isAdmin && !systemConfig.featureFlags?.uiV2ForMembers ? 'Neue Oberfläche (Vorschau für Admins)' : 'Neue Oberfläche (Vorschau)'}
+              />
+              <Divider />
+            </>
+          )}
           <Typography variant="subtitle2" color="text.secondary">
             Standard-Kalenderansicht
           </Typography>

@@ -35,7 +35,7 @@ function a11yProps(index: number) {
   };
 }
 
-export const CalendarTabs: React.FC = () => {
+export const CalendarTabs: React.FC<{ listView?: boolean }> = ({ listView = false }) => {
   const { canReserve } = useMemberReservationEligibility();
   const [value, setValue] = useState(canReserve ? 0 : 1);
   const { setBreadcrumbs } = usePageTitle();
@@ -65,10 +65,10 @@ export const CalendarTabs: React.FC = () => {
         </Tabs>
       </Box>
       <TabPanel value={value} index={0} sx={{ py: { xs: 1, sm: 2 } }}>
-        <BoatReservationCalendar />
+        <BoatReservationCalendar listView={listView} />
       </TabPanel>
       <TabPanel value={value} index={1} sx={{ py: { xs: 1, sm: 2 } }}>
-        <WorkCalendar />
+        <WorkCalendar listView={listView} />
       </TabPanel>
     </Box>
   );

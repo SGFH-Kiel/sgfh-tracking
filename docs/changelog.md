@@ -18,7 +18,7 @@ Aufbau eines Eintrags (`ChangelogEntry`, siehe `src/domain/changelog.ts`):
 
 Zielgruppen (`audience`): `all`, `bootswart`, `admin`, `superadmin`. Höhere Rollen sehen auch die Abschnitte der niedrigeren; Einträge ohne sichtbaren Abschnitt werden ausgeblendet.
 
-Mit `onlyWhen` wird ein Abschnitt an einen Zustand gebunden, z. B. `seasonModelActive` (erst nach Aktivierung des Saisonmodells sichtbar) oder `seasonModelInactive` (nur bis dahin, z. B. Umstellungshinweise für Superadmins).
+Mit `onlyWhen` wird ein Abschnitt an einen Zustand gebunden, z. B. `seasonModelActive` (erst nach Aktivierung des Saisonmodells sichtbar), `seasonModelInactive` (nur bis dahin, z. B. Umstellungshinweise für Superadmins) oder `uiV2Released` (erst wenn die neue Oberfläche für Mitglieder freigeschaltet ist).
 
 Schreibstil: kurze deutsche Sätze, ohne Technikbegriffe; Hinweise, was Nutzer tun oder beachten müssen, gehören in den Abschnitt ihrer Rolle.
 

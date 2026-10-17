@@ -3,6 +3,11 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { captureInstallPrompt, registerServiceWorker } from './pwa/pwa';
+
+// PWA: Installations-Ereignis früh abfangen und Service Worker registrieren (nur im Produktions-Build).
+captureInstallPrompt();
+registerServiceWorker();
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement

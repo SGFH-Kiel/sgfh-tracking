@@ -3,7 +3,7 @@ import { CssBaseline, ThemeProvider, CircularProgress, Box } from '@mui/material
 import { theme } from './theme/theme';
 import { AppProvider, useApp } from './contexts/AppContext';
 import { PageTitleProvider } from './contexts/PageTitleContext';
-import { Layout } from './components/Layout';
+import { UiShell } from './components/UiShell';
 import { Login } from './components/Auth/Login';
 import { Signup } from './components/Auth/Signup';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
@@ -12,6 +12,8 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { SnackbarProvider } from 'notistack';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { ErrorPage } from './components/Auth/ErrorPage';
+import { PwaUpdateNotifier } from './pwa/PwaComponents';
+import { ConfirmProvider } from './components/common/ConfirmProvider';
 
 import 'dayjs/locale/de';
 
@@ -33,7 +35,7 @@ const AppContent = () => {
       <Route path="/denied" element={<ErrorPage />} />
       <Route path="/*" element={
         <ProtectedRoute>
-          <Layout />
+          <UiShell />
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -50,7 +52,10 @@ function App() {
             <PageTitleProvider>
               <ThemeProvider theme={theme}>
                 <CssBaseline />
-                <AppContent />
+                <ConfirmProvider>
+                  <AppContent />
+                </ConfirmProvider>
+                <PwaUpdateNotifier />
               </ThemeProvider>
             </PageTitleProvider>
           </AppProvider>

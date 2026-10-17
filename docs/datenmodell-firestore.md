@@ -12,6 +12,7 @@ Wichtige Felder:
 - `feesPaid`
 - `skipHours`
 - `onboardingState`
+- `preferences` (u. a. `calendarDefaults`, `showCancelledReservations`, `seenChangelogIds`, `uiVersion` = `v1` | `v2`)
 
 ## `boats`
 
@@ -75,7 +76,9 @@ Wichtige Felder:
 - `workHourThreshold` – Pflichtstunden pro Saison
 - `calendarDefaults`
 - `featureFlags`
-- Saisonmodell (alle optional, siehe `docs/arbeitsstunden-logik.md`):
+  - `enableMemberCreation`
+  - `uiV2ForMembers` – neue Oberfläche (v2) für alle Mitglieder freigeschaltet (Admins dürfen sie immer testen)
+- Saisonmodell(alle optional, siehe `docs/arbeitsstunden-logik.md`):
   - `currentSeason` – aktuelle Saison (zählt für die Reservierungsberechtigung)
   - `nextSeasonOpen` – Buchung für `currentSeason + 1` geöffnet
   - `nextSeasonOpenedAt`, `currentSeasonStartedAt` – Zeitpunkte der letzten Saisonaktionen

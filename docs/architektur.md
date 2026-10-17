@@ -48,3 +48,18 @@ Die Anwendung besteht aus einem React-Frontend mit TypeScript und Firebase als B
 - Die Kopfzeile zeigt auf Smartphones nur den Seitentitel und Symbole für Einstellungen, Hilfe und Abmelden.
 - Tabellen blenden auf schmalen Bildschirmen Nebenspalten aus und zeigen die Informationen kompakt in der ersten Spalte (z. B. Uhrzeit unter dem Datum, E-Mail unter dem Namen).
 - Beide Kalender haben eine Schaltfläche für neue Einträge („Reservieren“/„Vormerken“, „Termin anlegen“). Auf Touch-Geräten war das sonst nur per langem Druck auf einen Zeitslot möglich. Wochen- und Tagesansicht starten um 07:00.
+
+## Oberfläche v2 (Vorschau)
+
+Konzept und Audit: `docs/ux-audit-v2.md`.
+
+- `src/components/UiShell.tsx` wählt je Nutzer v1 (`Layout`) oder v2 (`src/v2/V2Shell.tsx`, per Code-Splitting nachgeladen). Die Logik steht in `src/domain/uiVersion.ts`.
+- `src/v2/data/LiveDataContext.tsx`: eine gemeinsame, live aktualisierte Datenquelle (Firestore-Listener) für Arbeitstermine und Reservierungen. `src/v2/data/selectors.ts` enthält reine, getestete Auswahlfunktionen (Prüf-Eingang, nächste Termine).
+- Gemeinsame Fachaktionen für v1 und v2: `src/domain/workHourActions.ts` (Teilnehmerstatus), `src/domain/reservationActions.ts` (Reservierungsstatus) und `src/domain/eligibility.ts` (Reservierungsberechtigung).
+- Rückfragen vor folgenreichen Aktionen über `useConfirm()` (`src/components/common/ConfirmProvider.tsx`).
+- v2 verwendet dieselben Adressen wie v1 (`/hours`, `/calendar`, `/changelog` …); neu sind nur `/review` und `/more`.
+
+## App (PWA)
+
+Details: `docs/app-veroeffentlichung.md`. `public/manifest.json`, `public/service-worker.js`, `src/pwa/*` (Registrierung, Installation, Update-Hinweis).
+

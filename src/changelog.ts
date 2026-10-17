@@ -11,6 +11,82 @@ import { ChangelogEntry } from './domain/changelog';
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: '2026-10-18-neue-oberflaeche',
+    date: '2026-10-18',
+    title: 'Neue Oberfläche (Vorschau)',
+    type: 'feature',
+    summary: 'Eine überarbeitete Oberfläche für Smartphone und Computer – mit Übersicht, schnellerer Navigation und einem Prüf-Eingang für Bootswarte und Admins.',
+    sections: [
+      {
+        audience: 'all',
+        onlyWhen: 'uiV2Released',
+        items: [
+          'Unter „Meine Einstellungen“ können Sie die neue Oberfläche einschalten und jederzeit zur klassischen Ansicht zurückwechseln.',
+          'Die Übersicht zeigt auf einen Blick, ob Sie final reservieren können, was noch fehlt und welche Termine anstehen.',
+          'Auf dem Smartphone liegen die wichtigsten Bereiche in einer Leiste am unteren Rand; der Kalender startet in der Listenansicht.',
+          'Änderungen anderer erscheinen sofort, ohne die Seite neu zu laden.',
+        ],
+      },
+      {
+        audience: 'bootswart',
+        onlyWhen: 'uiV2Released',
+        items: [
+          'Neuer Bereich „Prüfen“: alle offenen Arbeitsstunden und Reservierungen Ihrer Boote an einem Ort – bestätigen oder ablehnen mit einem Tipp, inklusive „Rückgängig“.',
+        ],
+      },
+      {
+        audience: 'admin',
+        items: [
+          'Admins können die neue Oberfläche bereits als Vorschau testen: Hinweis „Ausprobieren“ in der klassischen Ansicht oder „Meine Einstellungen“.',
+          'Der Bereich „Prüfen“ bündelt alle offenen Arbeitsstunden und Reservierungen; eigene Einträge erscheinen dort nicht (Vier-Augen-Prinzip).',
+        ],
+      },
+      {
+        audience: 'superadmin',
+        items: [
+          'In den Systemeinstellungen schalten Sie die neue Oberfläche für alle Mitglieder frei. Mitglieder entscheiden dann selbst; Standard bleibt die klassische Ansicht.',
+        ],
+      },
+    ],
+  },
+  {
+    id: '2026-10-18-app',
+    date: '2026-10-18',
+    title: 'Als App installieren',
+    type: 'feature',
+    sections: [
+      {
+        audience: 'all',
+        items: [
+          'Die Seite lässt sich als App installieren – mit eigenem Symbol auf dem Startbildschirm und im Vollbild.',
+          'Android und Computer (Chrome/Edge): „App installieren“ im Menü. iPhone/iPad: in Safari „Teilen“ → „Zum Home-Bildschirm“ (die App zeigt eine Anleitung).',
+          'In der installierten App bleiben Sie angemeldet. Ohne Verbindung startet die App weiterhin; Daten werden geladen, sobald wieder eine Verbindung besteht.',
+          'Steht eine neue Version bereit, bietet die App „Neu laden“ an.',
+        ],
+      },
+    ],
+  },
+  {
+    id: '2026-10-18-loeschen',
+    date: '2026-10-18',
+    title: 'Rückfrage vor dem Löschen',
+    type: 'improvement',
+    sections: [
+      {
+        audience: 'all',
+        items: [
+          'Arbeitstermine und eigene Einträge werden erst nach einer Rückfrage gelöscht – versehentliches Löschen ist damit ausgeschlossen.',
+        ],
+      },
+      {
+        audience: 'admin',
+        items: [
+          'Auch beim Löschen von Booten erscheint jetzt eine einheitliche Rückfrage.',
+        ],
+      },
+    ],
+  },
+{
     id: '2026-10-17-neuigkeiten',
     date: '2026-10-17',
     title: 'Neuigkeiten in der App',
@@ -39,7 +115,7 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Jede Arbeitsstunde gehört zu einer Saison (z. B. „Saison 2026“). Für Reservierungen zählen die Stunden der aktuellen Saison.',
           'Bisher fielen am Stichtag 01.10. alle Stunden auf 0 – auch wenn die Boote noch im Wasser waren. Jetzt gilt die Berechtigung weiter, bis die neue Saison im Frühjahr gestartet wird.',
           'Gegen Saisonende (z. B. ab dem Auskranen) kann schon für die nächste Saison gebucht werden – Winterarbeiten zählen dann für die neue Saison.',
-          'Beim Eintragen schlägt die App die passende Saison vor: Fehlen dir noch Stunden für die laufende Saison, zählt der Eintrag für diese, sonst für die nächste. Du kannst abweichend wählen.',
+          'Beim Eintragen schlägt die App die passende Saison vor: Fehlen Ihnen noch Stunden für die laufende Saison, zählt der Eintrag für diese, sonst für die nächste. Sie können abweichend wählen.',
           'Unter „Arbeitsstunden“ lässt sich oben die Saison auswählen – auch vergangene Saisons sind einsehbar.',
         ],
       },

@@ -8,10 +8,11 @@ import { User } from '../types/models';
 export const useChangelog = (): { visible: ChangelogEntry[]; unseen: ChangelogEntry[]; markAllSeen: () => Promise<void> } => {
   const { currentUser, isAdmin, isSuperAdmin, isAnyBootswart, systemConfig, database, reloadCurrentUser } = useApp();
   const seasonModelActive = isSeasonModelActive(systemConfig);
+  const uiV2Released = systemConfig.featureFlags?.uiV2ForMembers === true;
 
   const visible = useMemo(
-    () => getVisibleChangelog(CHANGELOG, { isAdmin, isSuperAdmin, isBootswart: isAnyBootswart, seasonModelActive }),
-    [isAdmin, isSuperAdmin, isAnyBootswart, seasonModelActive],
+    () => getVisibleChangelog(CHANGELOG, { isAdmin, isSuperAdmin, isBootswart: isAnyBootswart, seasonModelActive, uiV2Released }),
+    [isAdmin, isSuperAdmin, isAnyBootswart, seasonModelActive, uiV2Released],
   );
   const seenIds = currentUser?.preferences?.seenChangelogIds;
   const unseen = useMemo(() => getUnseenChangelog(visible, seenIds), [visible, seenIds]);

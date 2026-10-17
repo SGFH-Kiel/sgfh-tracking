@@ -4,18 +4,23 @@ import AddIcon from '@mui/icons-material/Add';
 import dayjs from 'dayjs';
 import 'dayjs/locale/de';
 import { useApp } from '../../contexts/AppContext';
-import { WorkAppointment, CalendarView } from '../../types/models';
+import { WorkAppointment } from '../../types/models';
 import { writeActivityLog } from '../../domain/activityLog';
 import { AppointmentDialog } from './AppointmentDialog';
+import { useConfirm } from '../common/ConfirmProvider';
 import { AppointmentDetailsDialog } from './AppointmentDetailsDialog';
-import { getDefaultNewSlot } from '../../hooks/useIsMobile';
+import { getDefaultNewSlot, useIsMobile } from '../../hooks/useIsMobile';
+import { CALENDAR_MESSAGES, CalendarViewOption } from '../Calendar/calendarMessages';
 import { Calendar, dayjsLocalizer } from 'react-big-calendar';
 
 const localizer = dayjsLocalizer(dayjs);
 
 dayjs.locale('de');
 
-export const WorkCalendar: React.FC = () => {
+export const WorkCalendar: React.FC<{ listView?: boolean }> = ({ listView = false }) => {
+  const isMobile = useIsMobile();
+  // v2: Listenansicht verfügbar und auf Smartphones Standard
+  const preferList = listView && isMobile;
   const [appointments, setAppointments] = useState<WorkAppointment[]>([]);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
@@ -23,20 +28,21 @@ export const WorkCalendar: React.FC = () => {
   const [displayDate, setDisplayDate] = useState<Date>(new Date());
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
   const { database, currentUser, isAdmin, isAnyBootswart, systemConfig } = useApp();
+  const confirm = useConfirm();
 
-  const defaultView: CalendarView =
+  const defaultView: CalendarViewOption = preferList ? 'agenda' :
     currentUser?.preferences?.calendarDefaults?.arbeitskalender ??
     systemConfig.calendarDefaults?.arbeitskalender ??
     'week';
-  const [selectedView, setSelectedView] = useState<CalendarView>(defaultView);
+  const [selectedView, setSelectedView] = useState<CalendarViewOption>(defaultView);
 
   useEffect(() => {
-    setSelectedView(
+    setSelectedView(preferList ? 'agenda' :
       currentUser?.preferences?.calendarDefaults?.arbeitskalender ??
       systemConfig.calendarDefaults?.arbeitskalender ??
       'week'
     );
-  }, [currentUser?.preferences?.calendarDefaults?.arbeitskalender, systemConfig.calendarDefaults?.arbeitskalender]);
+  }, [preferList, currentUser?.preferences?.calendarDefaults?.arbeitskalender, systemConfig.calendarDefaults?.arbeitskalender]);
 
   const refreshAppointments = useCallback(async () => {
     const aptms = await database.getDocuments<WorkAppointment>('workAppointments');
@@ -100,7 +106,7 @@ export const WorkCalendar: React.FC = () => {
           onSelectSlot={handleOpenCreateDialog}
           onSelectEvent={handleOpenDetailsDialog}
           view={selectedView}
-          views={['month', 'week', 'day']}
+          views={listView ? ['agenda', 'month', 'week', 'day'] : ['month', 'week', 'day']}
           eventPropGetter={(event: WorkAppointment) => ({
             className: event.private ? 'private-appointment' : undefined,
             style: {
@@ -113,16 +119,9 @@ export const WorkCalendar: React.FC = () => {
           onNavigate={(range) => {
             setDisplayDate(range);
           }}
-          onView={(v) => setSelectedView(v as CalendarView)}
+          onView={(v) => setSelectedView(v as CalendarViewOption)}
           titleAccessor="title"
-          messages={{
-            next: 'Weiter',
-            previous: 'Zurück',
-            today: 'Heute',
-            month: 'Monat',
-            week: 'Woche',
-            day: 'Tag',
-          }}
+          messages={CALENDAR_MESSAGES}
           dayLayoutAlgorithm="no-overlap"
         />
     </Paper>
@@ -164,6 +163,13 @@ export const WorkCalendar: React.FC = () => {
             await refreshAppointments();
           }}
           onDelete={async () => {
+            const confirmed = await confirm({
+              title: 'Termin löschen?',
+              message: `„${selectedAppointment.title}“ wird mit allen Teilnehmern und Stunden endgültig gelöscht.`,
+              confirmLabel: 'Löschen',
+              destructive: true,
+            });
+            if (!confirmed) return;
             await database.deleteDocument('workAppointments', selectedAppointment.id);
             if (currentUser) {
               await writeActivityLog(database, {

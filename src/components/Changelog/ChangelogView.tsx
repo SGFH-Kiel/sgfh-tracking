@@ -49,7 +49,7 @@ export const ChangelogView: React.FC = () => {
       <Paper sx={{ p: { xs: 2, sm: 3 } }}>
         <Typography variant="h5" gutterBottom>Neuigkeiten</Typography>
         <Typography variant="body2" color="text.secondary">
-          Alle Änderungen an der App – neue Funktionen, geänderte Regeln und Fehlerbehebungen. Hinweise speziell für deine Rolle sind gekennzeichnet.
+          Alle Änderungen an der App – neue Funktionen, geänderte Regeln und Fehlerbehebungen. Hinweise speziell für Ihre Rolle sind gekennzeichnet.
         </Typography>
       </Paper>
 

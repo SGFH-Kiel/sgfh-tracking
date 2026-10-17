@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, browserSessionPersistence, setPersistence, connectAuthEmulator } from 'firebase/auth';
+import { getAuth, browserLocalPersistence, browserSessionPersistence, setPersistence, connectAuthEmulator } from 'firebase/auth';
 import { initializeFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { isStandalone } from '../pwa/pwa';
 
 if (!process.env.REACT_APP_FIREBASE_API_KEY || !process.env.REACT_APP_FIREBASE_PROJECT_ID) {
   throw new Error('Firebase configuration is missing. Please check your .env file.');
@@ -25,8 +26,9 @@ try {
 }
 
 export const auth = getAuth(app);
-// Set auth persistence to session (cleared when window/tab is closed)
-setPersistence(auth, browserSessionPersistence).catch(error => {
+// Im Browser gilt die Anmeldung für die Sitzung (endet beim Schließen des Tabs).
+// Als installierte App (Home-Bildschirm) bleibt man angemeldet – sonst wäre bei jedem Start ein Login nötig.
+setPersistence(auth, isStandalone() ? browserLocalPersistence : browserSessionPersistence).catch(error => {
   console.error('Error setting auth persistence:', error);
 });
 

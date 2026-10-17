@@ -113,11 +113,11 @@ export const SeasonSelect: React.FC<SeasonSelectProps> = ({
   } else if (defaultSeason === currentSeason && missingCurrentMinutes > 0) {
     helper = forOtherMember
       ? `Für ${formatSeason(currentSeason)} fehlen noch ${humanizer(missingCurrentMinutes * 60000)} – deshalb zählt der Eintrag standardmäßig für ${currentSeason}.`
-      : `Dir fehlen für ${formatSeason(currentSeason)} noch ${humanizer(missingCurrentMinutes * 60000)}. Damit du weiter segeln kannst, zählt der Eintrag standardmäßig für ${currentSeason}.`;
+      : `Ihnen fehlen für ${formatSeason(currentSeason)} noch ${humanizer(missingCurrentMinutes * 60000)}. Damit Sie weiter segeln können, zählt der Eintrag standardmäßig für ${currentSeason}.`;
   } else if (defaultSeason > currentSeason) {
     helper = forOtherMember
       ? `${formatSeason(currentSeason)} ist bereits abgedeckt – der Eintrag zählt standardmäßig für ${defaultSeason}.`
-      : `Deine Stunden für ${formatSeason(currentSeason)} sind abgedeckt – der Eintrag zählt standardmäßig für ${defaultSeason}.`;
+      : `Ihre Stunden für ${formatSeason(currentSeason)} sind abgedeckt – der Eintrag zählt standardmäßig für ${defaultSeason}.`;
   } else {
     helper = `Vorschlag: ${formatSeason(defaultSeason)}`;
   }

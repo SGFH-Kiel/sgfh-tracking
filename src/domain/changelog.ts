@@ -9,7 +9,7 @@ export type ChangelogAudience = 'all' | 'bootswart' | 'admin' | 'superadmin';
 export type ChangelogEntryType = 'feature' | 'improvement' | 'fix' | 'security';
 
 /** Bedingungen, unter denen ein Abschnitt angezeigt wird (z. B. erst nach Aktivierung eines Features). */
-export type ChangelogCondition = 'seasonModelActive' | 'seasonModelInactive';
+export type ChangelogCondition = 'seasonModelActive' | 'seasonModelInactive' | 'uiV2Released';
 
 export interface ChangelogSection {
   audience: ChangelogAudience;
@@ -34,6 +34,8 @@ export interface ChangelogViewer {
   isAdmin: boolean;
   isBootswart: boolean;
   seasonModelActive: boolean;
+  /** Neue Oberfläche (v2) ist für Mitglieder freigeschaltet. */
+  uiV2Released?: boolean;
 }
 
 export function canSeeAudience(audience: ChangelogAudience, viewer: ChangelogViewer): boolean {
@@ -54,6 +56,7 @@ export function canSeeAudience(audience: ChangelogAudience, viewer: ChangelogVie
 function conditionMet(condition: ChangelogCondition | undefined, viewer: ChangelogViewer): boolean {
   if (!condition) return true;
   if (condition === 'seasonModelActive') return viewer.seasonModelActive;
+  if (condition === 'uiV2Released') return viewer.uiV2Released === true;
   return !viewer.seasonModelActive;
 }
 
